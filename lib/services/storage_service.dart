@@ -1,9 +1,10 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../core/constants/storage_keys.dart';
 
 class StorageService {
-  static const String tokenKey = 'auth_token';
-  static const String userKey = 'user_data';
+  static const String tokenKey = StorageKeys.authToken;
+  static const String userKey = StorageKeys.userData;
 
   static Future<void> saveToken(String token) async {
     final prefs = await SharedPreferences.getInstance();

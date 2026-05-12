@@ -251,13 +251,38 @@ class _MemberDashboardScreenState extends State<MemberDashboardScreen> {
   Widget build(BuildContext context) {
     return MemberDashboardLayout(
       currentRoute: 'member-dashboard',
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: _isLoading
-            ? const Center(child: CircularProgressIndicator())
-            : _error.isNotEmpty
-                ? Center(child: Text(_error, style: const TextStyle(color: Colors.red)))
-                : Column(
+      child: RefreshIndicator(
+        onRefresh: _loadData,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(20),
+          child: _isLoading
+              ? const SizedBox(
+                  height: 500,
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              : _error.isNotEmpty
+                  ? SizedBox(
+                      height: 500,
+                      child: Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              _error,
+                              style: const TextStyle(color: Colors.red),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 12),
+                            ElevatedButton(
+                              onPressed: _loadData,
+                              child: const Text('Reintentar'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  : Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       // Title
@@ -448,6 +473,7 @@ class _MemberDashboardScreenState extends State<MemberDashboardScreen> {
                       ),
                     ],
                   ),
+        ),
       ),
     );
   }

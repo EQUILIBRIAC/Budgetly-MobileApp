@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import '../app/app_routes.dart';
 import '../config/api_config.dart';
 import '../theme/app_colors.dart';
 import '../services/http_service.dart';
@@ -126,7 +128,7 @@ class _SignupScreenState extends State<SignupScreen> {
 
         await Future.delayed(const Duration(milliseconds: 1200));
         if (mounted) {
-          Navigator.of(context).pushReplacementNamed('login');
+          context.go(AppRoutes.login);
         }
       }
     } catch (err) {
@@ -605,7 +607,7 @@ class _SignupScreenState extends State<SignupScreen> {
                             WidgetSpan(
                               child: GestureDetector(
                                 onTap: () {
-                                  Navigator.of(context).pushReplacementNamed('login');
+                                  context.go(AppRoutes.login);
                                 },
                                 child: const Text(
                                   'Sign In',

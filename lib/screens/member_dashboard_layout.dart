@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
-import '../services/storage_service.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
-class MemberDashboardLayout extends StatefulWidget {
+import '../app/app_router.dart';
+import '../app/app_routes.dart';
+
+class MemberDashboardLayout extends ConsumerStatefulWidget {
   final Widget child;
   final String currentRoute;
 
@@ -12,10 +16,11 @@ class MemberDashboardLayout extends StatefulWidget {
   });
 
   @override
-  State<MemberDashboardLayout> createState() => _MemberDashboardLayoutState();
+  ConsumerState<MemberDashboardLayout> createState() =>
+      _MemberDashboardLayoutState();
 }
 
-class _MemberDashboardLayoutState extends State<MemberDashboardLayout> {
+class _MemberDashboardLayoutState extends ConsumerState<MemberDashboardLayout> {
   final List<({String label, String icon, String route})> _menuItems = [
     (label: 'Inicio', icon: 'home', route: 'member-dashboard'),
     (label: 'Mis aportes', icon: 'check_square', route: 'member-contributions'),
@@ -84,7 +89,23 @@ class _MemberDashboardLayoutState extends State<MemberDashboardLayout> {
   }) {
     return GestureDetector(
       onTap: () {
-        Navigator.of(context).pushReplacementNamed(route);
+        switch (route) {
+          case 'member-dashboard':
+            context.go(AppRoutes.memberDashboard);
+            break;
+          case 'member-contributions':
+            context.go(AppRoutes.memberContributions);
+            break;
+          case 'member-household-status':
+            context.go(AppRoutes.memberHouseholdStatus);
+            break;
+          case 'member-search-household':
+            context.go(AppRoutes.memberSearchHousehold);
+            break;
+          case 'member-settings':
+            context.go(AppRoutes.memberSettings);
+            break;
+        }
       },
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 4),
@@ -215,9 +236,9 @@ class _MemberDashboardLayoutState extends State<MemberDashboardLayout> {
   }
 
   void _performLogout() async {
-    await StorageService.clearAll();
+    await ref.read(authControllerProvider).signOut();
     if (mounted) {
-      Navigator.of(context).pushReplacementNamed('login');
+      context.go(AppRoutes.login);
     }
   }
 }

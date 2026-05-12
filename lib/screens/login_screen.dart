@@ -1,19 +1,19 @@
 import 'package:flutter/material.dart';
-import '../config/api_config.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import '../app/app_router.dart';
+import '../app/app_routes.dart';
+import '../app/l10n/app_strings.dart';
 import '../theme/app_colors.dart';
-import '../services/auth_service.dart';
-import '../services/http_service.dart';
-import '../services/storage_service.dart';
 
-class LoginScreen extends StatefulWidget {
+class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  ConsumerState<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
-  late final AuthService _authService;
+class _LoginScreenState extends ConsumerState<LoginScreen> {
   late final TextEditingController _emailController;
   late final TextEditingController _passwordController;
 
@@ -27,9 +27,6 @@ class _LoginScreenState extends State<LoginScreen> {
     super.initState();
     _emailController = TextEditingController();
     _passwordController = TextEditingController();
-    // Use centralized API configuration
-    final httpService = HttpService(baseUrl: ApiConfig.baseUrl);
-    _authService = AuthService(httpService: httpService);
   }
 
   @override
@@ -48,7 +45,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
     if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
       setState(() {
-        _error = 'Please fill in your email and password.';
+        _error = AppStrings.loginEmptyCredentials;
       });
       return;
     }
@@ -58,32 +55,16 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      final user = await _authService.signIn(
+      final user = await ref.read(authControllerProvider).signIn(
         email: _emailController.text,
         password: _passwordController.text,
       );
 
-      // Save token and user data locally
-      final token = _authService.lastToken;
-      if (token != null) {
-        await StorageService.saveToken(token);
-      }
-      
-      await StorageService.saveUser({
-        'id': user.id,
-        'email': user.email,
-        'role': user.role,
-        'householdId': user.householdId,
-        'isNewUser': user.isNewUser,
-        'plan': user.plan,
-      });
-
       if (mounted) {
-        // Navigate based on role
-        final target =
-            user.role == 'member' ? 'member-dashboard' : 'representative-dashboard';
-
-        Navigator.of(context).pushReplacementNamed(target);
+        final target = user.role == 'member'
+            ? AppRoutes.memberDashboard
+            : AppRoutes.repDashboard;
+        context.go(target);
       }
     } catch (err) {
       if (mounted) {
@@ -96,16 +77,14 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _handleGoogleSignIn() {
-    // TODO: Implement Google Sign-In
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Google Sign-In coming soon')),
+      const SnackBar(content: Text('Google Sign-In estará disponible pronto')),
     );
   }
 
   void _handleGithubSignIn() {
-    // TODO: Implement GitHub Sign-In
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('GitHub Sign-In coming soon')),
+      const SnackBar(content: Text('GitHub Sign-In estará disponible pronto')),
     );
   }
 
@@ -142,7 +121,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         const SizedBox(width: 8),
                         const Text(
-                          'Budgetly',
+                          AppStrings.appName,
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.w500,
@@ -156,7 +135,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
                     // Title
                     const Text(
-                      'Welcome Back!',
+                      AppStrings.loginTitle,
                       style: TextStyle(
                         fontSize: 30,
                         fontWeight: FontWeight.w700,
@@ -340,10 +319,10 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         GestureDetector(
                           onTap: () {
-                            Navigator.of(context).pushNamed('forgot-password');
+                            context.go(AppRoutes.forgotPassword);
                           },
                           child: const Text(
-                            'Forgot Password?',
+                            AppStrings.loginForgotPassword,
                             style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
@@ -380,7 +359,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                               )
                             : const Text(
-                                'Sign In',
+                                AppStrings.loginSignIn,
                                 style: TextStyle(
                                   fontSize: 15,
                                   fontWeight: FontWeight.w600,
@@ -452,7 +431,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             WidgetSpan(
                               child: GestureDetector(
                                 onTap: () {
-                                  Navigator.of(context).pushNamed('signup');
+                                  context.go(AppRoutes.signup);
                                 },
                                 child: const Text(
                                   'Sign Up',

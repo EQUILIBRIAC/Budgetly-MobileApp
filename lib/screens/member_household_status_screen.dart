@@ -53,54 +53,33 @@ class _MemberHouseholdStatusScreenState
         throw Exception('No authentication token found');
       }
       _httpService.setToken(token);
-      print('[HouseholdStatus] Token set on HttpService');
 
       final userJson = await StorageService.getUser();
       if (userJson == null) {
         throw Exception('No user found');
       }
 
-      print('[HouseholdStatus] User data: $userJson');
       final householdId = userJson['householdId']?.toString() ?? '';
       if (householdId.isEmpty) {
         throw Exception('No household found for this user');
       }
 
-      print('[HouseholdStatus] Loading data for household: $householdId');
-
-      // Parallel data loading
-      print('[HouseholdStatus] Fetching members...');
       final memberRes =
           await _httpService.get('/api/v1/household/$householdId/members');
-      print('[HouseholdStatus] Members response received: ${memberRes.keys}');
-
-      print('[HouseholdStatus] Fetching bills...');
       final billsRes =
           await _httpService.get('/api/v1/household/$householdId/bills');
-      print('[HouseholdStatus] Bills response received: ${billsRes.keys}');
-
-      print('[HouseholdStatus] Fetching contributions...');
       final contributionsRes = await _httpService
           .get('/api/v1/household/$householdId/contributions');
-      print('[HouseholdStatus] Contributions response received: ${contributionsRes.keys}');
-
-      print('[HouseholdStatus] Fetching member contributions...');
       final memberContribsRes =
           await _httpService.get('/api/v1/member-contributions');
-      print('[HouseholdStatus] Member contributions response received: ${memberContribsRes.keys}');
-
-      print('[HouseholdStatus] Fetching household info...');
       final householdRes =
           await _httpService.get('/api/v1/household/$householdId');
-      print('[HouseholdStatus] Household response received: ${householdRes.keys}');
 
       final members = _parseMembers(memberRes);
       final bills = _parseBills(billsRes);
       final contributions = _parseContributions(contributionsRes);
       final memberContributions = _parseMemberContributions(memberContribsRes);
       final currency = (householdRes['currency'] == 2) ? 'USD' : 'PEN';
-
-      print('[HouseholdStatus] Parsed - Members: ${members.length}, Bills: ${bills.length}, Contributions: ${contributions.length}');
 
       final memberIds = members.map((m) => m.id).toSet();
       final filteredEntries = memberContributions
@@ -121,9 +100,8 @@ class _MemberHouseholdStatusScreenState
         });
       }
     } catch (e) {
-      print('[HouseholdStatus] Error: $e');
       setState(() {
-        _errorMessage = 'Error loading household status. Exception: ${e.toString()}';
+        _errorMessage = 'Error loading household status: ${e.toString()}';
       });
     } finally {
       setState(() {

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import '../app/app_routes.dart';
 import '../config/api_config.dart';
 import '../services/http_service.dart';
 import '../services/storage_service.dart';
@@ -139,7 +141,7 @@ class _MemberSearchHouseholdScreenState
       // Navigate back after success
       Future.delayed(const Duration(seconds: 2), () {
         if (mounted) {
-          Navigator.of(context).pushReplacementNamed('member-dashboard');
+          context.go(AppRoutes.memberDashboard);
         }
       });
     } catch (e) {

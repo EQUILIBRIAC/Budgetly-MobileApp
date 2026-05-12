@@ -61,8 +61,6 @@ class AuthService {
     // Store token for later retrieval
     _lastToken = token;
     httpService.setToken(token);
-    print('[AuthService] Token received and set on HttpService instance');
-
     // Handle id as either String or int
     final userId = _toString(response['id']) ?? '';
     final responseEmail = _toString(response['email']) ?? normalizedEmail;
