@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/storage_service.dart';
 
 class MemberDashboardLayout extends StatefulWidget {
   final Widget child;
@@ -15,8 +16,6 @@ class MemberDashboardLayout extends StatefulWidget {
 }
 
 class _MemberDashboardLayoutState extends State<MemberDashboardLayout> {
-  bool _sidebarCollapsed = false;
-
   final List<({String label, String icon, String route})> _menuItems = [
     (label: 'Inicio', icon: 'home', route: 'member-dashboard'),
     (label: 'Mis aportes', icon: 'check_square', route: 'member-contributions'),
@@ -28,125 +27,82 @@ class _MemberDashboardLayoutState extends State<MemberDashboardLayout> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Row(
-        children: [
-          // Sidebar
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 300),
-            width: _sidebarCollapsed ? 92 : 280,
-            color: Colors.white,
-            child: Column(
+      body: Container(
+        color: const Color(0xFFF8F9FA),
+        child: widget.child,
+      ),
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          border: Border(
+            top: BorderSide(color: const Color(0xFFE2E8F0), width: 1),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.08),
+              blurRadius: 12,
+              offset: const Offset(0, -2),
+            ),
+          ],
+        ),
+        child: SafeArea(
+          top: false,
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+            child: Row(
               children: [
-                // Sidebar Header
-                Padding(
-                  padding: const EdgeInsets.all(14),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      if (!_sidebarCollapsed)
-                        Text(
-                          'Budgetly',
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF0F172A),
-                          ),
-                        ),
-                      IconButton(
-                        icon: Icon(
-                          _sidebarCollapsed ? Icons.menu : Icons.menu,
-                          color: const Color(0xFF0F172A),
-                        ),
-                        onPressed: () {
-                          setState(() {
-                            _sidebarCollapsed = !_sidebarCollapsed;
-                          });
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-                const Divider(height: 1),
+                // Menu Items (Lazy Row)
+                ..._menuItems.map((item) {
+                  final isActive = widget.currentRoute == item.route;
+                  return _buildNavItem(
+                    label: item.label,
+                    icon: item.icon,
+                    route: item.route,
+                    isActive: isActive,
+                  );
+                }).toList(),
 
-                // Menu Items
-                Expanded(
-                  child: ListView(
-                    padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 10),
-                    children: _menuItems.map((item) {
-                      final isActive = widget.currentRoute == item.route;
-                      return _buildMenuItem(
-                        label: item.label,
-                        icon: item.icon,
-                        route: item.route,
-                        isActive: isActive,
-                        isCollapsed: _sidebarCollapsed,
-                      );
-                    }).toList(),
-                  ),
-                ),
+                // Spacer
+                const SizedBox(width: 8),
 
-                // Logout
-                Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: GestureDetector(
-                    onTap: _logout,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.logout, color: Color(0xFFEF4444), size: 20),
-                        if (!_sidebarCollapsed)
-                          const SizedBox(width: 12),
-                        if (!_sidebarCollapsed)
-                          const Text(
-                            'Cerrar sesión',
-                            style: TextStyle(
-                              color: Color(0xFF0F172A),
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
+                // Logout Button
+                _buildLogoutButton(),
               ],
             ),
           ),
-
-          // Main Content
-          Expanded(
-            child: Container(
-              color: const Color(0xFFF8F9FA),
-              child: widget.child,
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
 
-  Widget _buildMenuItem({
+  Widget _buildNavItem({
     required String label,
     required String icon,
     required String route,
     required bool isActive,
-    required bool isCollapsed,
   }) {
     return GestureDetector(
       onTap: () {
         Navigator.of(context).pushReplacementNamed(route);
       },
       child: Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        margin: const EdgeInsets.symmetric(horizontal: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: isActive ? Colors.white : Colors.transparent,
-          borderRadius: BorderRadius.circular(10),
+          color: isActive ? const Color(0xFF4FACFE).withOpacity(0.1) : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+          border: isActive
+              ? Border.all(color: const Color(0xFF4FACFE), width: 1.5)
+              : null,
         ),
-        child: Row(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
-              width: 28,
-              height: 28,
+              width: 32,
+              height: 32,
               decoration: BoxDecoration(
                 color: isActive ? const Color(0xFF4FACFE) : const Color(0xFFEEF2F7),
                 borderRadius: BorderRadius.circular(8),
@@ -154,22 +110,70 @@ class _MemberDashboardLayoutState extends State<MemberDashboardLayout> {
               child: Center(
                 child: Icon(
                   _getIconData(icon),
-                  size: 16,
+                  size: 18,
                   color: isActive ? Colors.white : const Color(0xFF94A3B8),
                 ),
               ),
             ),
-            if (!isCollapsed) ...[
-              const SizedBox(width: 12),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: isActive ? const Color(0xFF1D4ED8) : const Color(0xFF475569),
-                  fontWeight: isActive ? FontWeight.w700 : FontWeight.normal,
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                color: isActive ? const Color(0xFF1D4ED8) : const Color(0xFF64748B),
+                fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLogoutButton() {
+    return GestureDetector(
+      onTap: _logout,
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: const Color(0xFFEF4444).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Center(
+                child: Icon(
+                  Icons.logout,
+                  size: 18,
+                  color: Color(0xFFEF4444),
                 ),
               ),
-            ],
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'Salir',
+              style: TextStyle(
+                fontSize: 11,
+                color: Color(0xFFEF4444),
+                fontWeight: FontWeight.w700,
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
           ],
         ),
       ),
@@ -210,8 +214,10 @@ class _MemberDashboardLayoutState extends State<MemberDashboardLayout> {
     );
   }
 
-  void _performLogout() {
-    // Clear localStorage equivalent (SharedPreferences)
-    Navigator.of(context).pushReplacementNamed('login');
+  void _performLogout() async {
+    await StorageService.clearAll();
+    if (mounted) {
+      Navigator.of(context).pushReplacementNamed('login');
+    }
   }
 }

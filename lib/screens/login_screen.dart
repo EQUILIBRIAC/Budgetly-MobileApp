@@ -63,7 +63,12 @@ class _LoginScreenState extends State<LoginScreen> {
         password: _passwordController.text,
       );
 
-      // Save user data and token locally
+      // Save token and user data locally
+      final token = _authService.lastToken;
+      if (token != null) {
+        await StorageService.saveToken(token);
+      }
+      
       await StorageService.saveUser({
         'id': user.id,
         'email': user.email,

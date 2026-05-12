@@ -3,6 +3,9 @@ import 'screens/login_screen.dart';
 import 'screens/signup_screen.dart';
 import 'screens/member_contributions_screen.dart';
 import 'screens/member_dashboard_screen.dart';
+import 'screens/member_search_household_screen.dart';
+import 'screens/member_settings_screen.dart';
+import 'screens/member_household_status_screen.dart';
 import 'theme/app_theme.dart';
 
 void main() {
@@ -24,9 +27,9 @@ class MyApp extends StatelessWidget {
         'signup': (context) => const SignupScreen(),
         'member-dashboard': (context) => const MemberDashboardScreen(),
         'member-contributions': (context) => const MemberContributionsScreen(),
-        'member-household-status': (context) => const DashboardScreen(role: 'member'),
-        'member-search-household': (context) => const DashboardScreen(role: 'member'),
-        'member-settings': (context) => const DashboardScreen(role: 'member'),
+        'member-household-status': (context) => const MemberHouseholdStatusScreen(),
+        'member-search-household': (context) => const MemberSearchHouseholdScreen(),
+        'member-settings': (context) => const MemberSettingsScreen(),
         'representative-dashboard': (context) => const DashboardScreen(role: 'representative'),
       },
     );

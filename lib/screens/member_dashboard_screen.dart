@@ -47,6 +47,12 @@ class _MemberDashboardScreenState extends State<MemberDashboardScreen> {
 
       final userId = _toString(user['id']) ?? '';
       final httpService = HttpService(baseUrl: ApiConfig.baseUrl);
+      
+      // Set token on the service
+      final token = await StorageService.getToken();
+      if (token != null) {
+        httpService.setToken(token);
+      }
 
       final [memberList, memberContribs, household] = await Future.wait([
         _fetchMembers(httpService, householdId),

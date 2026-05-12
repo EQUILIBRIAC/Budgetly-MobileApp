@@ -5,8 +5,11 @@ import '../models/user_model.dart';
 
 class AuthService {
   final HttpService httpService;
+  String? _lastToken;
 
   AuthService({required this.httpService});
+
+  String? get lastToken => _lastToken;
 
   String? _toString(dynamic value) {
     if (value == null) return null;
@@ -55,7 +58,10 @@ class AuthService {
       throw Exception('Token not returned. Please try again.');
     }
 
+    // Store token for later retrieval
+    _lastToken = token;
     httpService.setToken(token);
+    print('[AuthService] Token received and set on HttpService instance');
 
     // Handle id as either String or int
     final userId = _toString(response['id']) ?? '';

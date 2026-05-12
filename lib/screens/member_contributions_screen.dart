@@ -51,6 +51,12 @@ class _MemberContributionsScreenState extends State<MemberContributionsScreen> {
       }
 
       final httpService = HttpService(baseUrl: ApiConfig.baseUrl);
+      
+      // Set token on the service
+      final token = await StorageService.getToken();
+      if (token != null) {
+        httpService.setToken(token);
+      }
 
       final [memberList, contributions, memberContribs, bills] = await Future.wait([
         _fetchMembers(httpService, householdId),

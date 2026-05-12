@@ -1,6 +1,7 @@
 class Household {
   final String id;
   final String name;
+  final String description;
   final String currency;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -8,6 +9,7 @@ class Household {
   Household({
     required this.id,
     required this.name,
+    required this.description,
     required this.currency,
     required this.createdAt,
     required this.updatedAt,
@@ -17,6 +19,7 @@ class Household {
     return Household(
       id: json['id'] ?? '',
       name: json['name'] ?? 'Mi Hogar',
+      description: json['description'] ?? '',
       currency: json['currency'] == 2 ? 'USD' : 'PEN',
       createdAt: DateTime.parse(json['createdAt'] ?? DateTime.now().toIso8601String()),
       updatedAt: DateTime.parse(json['updatedAt'] ?? DateTime.now().toIso8601String()),
@@ -26,6 +29,7 @@ class Household {
   Map<String, dynamic> toJson() => {
     'id': id,
     'name': name,
+    'description': description,
     'currency': currency == 'USD' ? 2 : 1,
     'createdAt': createdAt.toIso8601String(),
     'updatedAt': updatedAt.toIso8601String(),

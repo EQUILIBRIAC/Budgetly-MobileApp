@@ -1,15 +1,9 @@
-/// Configuración de API y ambiente
-/// Este archivo centraliza todas las URLs y constantes de configuración
-/// para que no estén esparcidas por toda la aplicación
 
 class ApiConfig {
   /// URL base del API según el ambiente
   /// 
   /// Para desarrollo local (Android Emulator):
   /// http://10.0.2.2:5070
-  /// 
-  /// Para desarrollo local (iOS Simulator):
-  /// http://localhost:5070
   /// 
   /// Para producción:
   /// https://api.tudominio.com
@@ -73,9 +67,13 @@ class ApiConfig {
       '$baseUrl/api/v1/member-contributions/$id';
 
   // ============ CONFIGURACIÓN ============
-  static const String userSettings = '$baseUrl/api/v1/settings';
-  static String updateSettings(String userId) =>
+  static String getUserSettings(String userId) =>
       '$baseUrl/api/v1/settings/$userId';
+
+  static const String createSettings = '$baseUrl/api/v1/settings/create';
+
+  static String updateSettings(String id) =>
+      '$baseUrl/api/v1/settings/$id';
 
   // ============ TIMEOUTS ============
   static const Duration connectionTimeout = Duration(seconds: 30);
