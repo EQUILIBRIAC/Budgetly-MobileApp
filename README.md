@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # budgetly_app
 
 A new Flutter project.
@@ -14,3 +15,6 @@ A few resources to get you started if this is your first Flutter project:
 For help getting started with Flutter development, view the
 [online documentation](https://docs.flutter.dev/), which offers tutorials,
 samples, guidance on mobile development, and a full API reference.
+=======
+# Budgetly-MobileApp
+>>>>>>> e3aed703a70d3a6b094447119ec68360acb5feb5
