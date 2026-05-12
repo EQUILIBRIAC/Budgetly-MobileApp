@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'screens/login_screen.dart';
 import 'screens/signup_screen.dart';
 import 'screens/member_contributions_screen.dart';
+import 'screens/member_dashboard_screen.dart';
 import 'theme/app_theme.dart';
 
 void main() {
@@ -21,7 +22,7 @@ class MyApp extends StatelessWidget {
         'login': (context) => const LoginScreen(),
         'forgot-password': (context) => const ForgotPasswordScreen(),
         'signup': (context) => const SignupScreen(),
-        'member-dashboard': (context) => const DashboardScreen(role: 'member'),
+        'member-dashboard': (context) => const MemberDashboardScreen(),
         'member-contributions': (context) => const MemberContributionsScreen(),
         'member-household-status': (context) => const DashboardScreen(role: 'member'),
         'member-search-household': (context) => const DashboardScreen(role: 'member'),
