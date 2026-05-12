@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../config/api_config.dart';
 import '../theme/app_colors.dart';
 import '../services/http_service.dart';
 
@@ -105,7 +106,7 @@ class _SignupScreenState extends State<SignupScreen> {
       final role = _userType == 'Member' ? 'Member' : 'Representative';
       final planCode = _getPlanCode(_selectedPlan);
 
-      final _ = await HttpService(baseUrl: 'https://backend-harmonix.onrender.com').post(
+      final _ = await HttpService(baseUrl: ApiConfig.baseUrl).post(
         '/api/v1/authentication/sign-up',
         body: {
           'email': normalizedEmail,

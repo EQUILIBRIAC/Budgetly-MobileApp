@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../config/api_config.dart';
 import '../theme/app_colors.dart';
 import '../services/auth_service.dart';
 import '../services/http_service.dart';
@@ -26,8 +27,8 @@ class _LoginScreenState extends State<LoginScreen> {
     super.initState();
     _emailController = TextEditingController();
     _passwordController = TextEditingController();
-    // Connected to backend: https://backend-harmonix.onrender.com
-    final httpService = HttpService(baseUrl: 'https://backend-harmonix.onrender.com');
+    // Use centralized API configuration
+    final httpService = HttpService(baseUrl: ApiConfig.baseUrl);
     _authService = AuthService(httpService: httpService);
   }
 

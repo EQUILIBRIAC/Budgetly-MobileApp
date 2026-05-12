@@ -8,6 +8,14 @@ class AuthService {
 
   AuthService({required this.httpService});
 
+  String? _toString(dynamic value) {
+    if (value == null) return null;
+    if (value is String) return value;
+    if (value is int) return value.toString();
+    if (value is double) return value.toStringAsFixed(0);
+    return value.toString();
+  }
+
   String? decodeRoleFromToken(String token) {
     try {
       final parts = token.split('.');
@@ -49,14 +57,13 @@ class AuthService {
 
     httpService.setToken(token);
 
-    final userId = response['id'] as String?;
-    final responseEmail = response['email'] as String? ?? normalizedEmail;
-    final responseRole = (response['role'] as String?)?.toLowerCase() ??
-        decodeRoleFromToken(token) ??
-        'representative';
+    // Handle id as either String or int
+    final userId = _toString(response['id']) ?? '';
+    final responseEmail = _toString(response['email']) ?? normalizedEmail;
+    final responseRole = (_toString(response['role']) ?? decodeRoleFromToken(token) ?? 'representative').toLowerCase();
     final authIsNewUser = response['isNewUser'] as bool? ?? false;
-    final authHouseholdId = response['householdId'] as String?;
-    final authPlan = response['plan'] as String?;
+    final authHouseholdId = _toString(response['householdId']);
+    final authPlan = _toString(response['plan']);
 
     // Fetch user profile
     final profileResponse = await httpService.get('/api/v1/user/user/$userId');
@@ -64,12 +71,12 @@ class AuthService {
 
     final onboardingPending =
         authIsNewUser || profile['isNewUser']?.toString().toLowerCase() == 'true';
-    final resolvedHouseholdId = authHouseholdId ?? profile['houseHoldId'] ?? '';
+    final resolvedHouseholdId = authHouseholdId ?? _toString(profile['houseHoldId']) ?? '';
     final resolvedPlan =
-        (authPlan ?? profile['plan'] ?? 'FREE').toString().toUpperCase();
+        (_toString(authPlan) ?? _toString(profile['plan']) ?? 'FREE').toUpperCase();
 
     return User(
-      id: userId ?? '',
+      id: userId,
       email: responseEmail,
       role: responseRole,
       householdId: resolvedHouseholdId,
