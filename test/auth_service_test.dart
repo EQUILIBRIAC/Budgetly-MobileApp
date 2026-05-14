@@ -1,19 +1,19 @@
-import 'package:budgetly_app/services/auth_service.dart';
-import 'package:budgetly_app/services/http_service.dart';
+import 'package:budgetly_app/core/network/http_service.dart';
+import 'package:budgetly_app/features/auth/data/datasources/auth_remote_data_source.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  group('AuthService.decodeRoleFromToken', () {
+  group('AuthRemoteDataSource.decodeRoleFromToken', () {
     test('retorna null para token inválido', () {
-      final service = AuthService(httpService: HttpService(baseUrl: 'http://localhost'));
-      expect(service.decodeRoleFromToken('invalid'), isNull);
+      final ds = AuthRemoteDataSource(HttpService(baseUrl: 'http://localhost'));
+      expect(ds.decodeRoleFromToken('invalid'), isNull);
     });
 
     test('parsea role del payload', () {
-      final service = AuthService(httpService: HttpService(baseUrl: 'http://localhost'));
+      final ds = AuthRemoteDataSource(HttpService(baseUrl: 'http://localhost'));
       const payload = 'eyJyb2xlIjoibWVtYmVyIn0'; // {"role":"member"}
       const token = 'aaa.$payload.bbb';
-      expect(service.decodeRoleFromToken(token), 'member');
+      expect(ds.decodeRoleFromToken(token), 'member');
     });
   });
 }

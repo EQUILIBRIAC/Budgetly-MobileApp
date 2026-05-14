@@ -7,10 +7,9 @@ class AppStrings {
   static const loginForgotPassword = 'Forgot Password?';
 
   static const forgotPasswordTitle = 'Recuperar contraseña';
-  static const forgotPasswordHint =
-      'Te enviaremos un enlace para restablecer tu contraseña.';
-  static const forgotPasswordInvalidEmail = 'Ingresa un correo válido.';
-  static const forgotPasswordSubmit = 'Enviar enlace';
-  static const forgotPasswordSuccess =
-      'Si el correo existe, recibirás instrucciones para recuperar tu contraseña.';
+  static const forgotPasswordNotAvailableBody =
+      'Actualmente el API no publica un endpoint de recuperación de contraseña '
+      '(solo sign-in y sign-up en Swagger). Contacta a soporte o '
+      'restablece la contraseña desde el panel del servidor si aplica.';
+  static const forgotPasswordBackToLogin = 'Volver al inicio de sesión';
 }

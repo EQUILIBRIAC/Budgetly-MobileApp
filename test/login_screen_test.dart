@@ -1,4 +1,4 @@
-import 'package:budgetly_app/screens/login_screen.dart';
+import 'package:budgetly_app/features/auth/presentation/screens/login_screen.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';

@@ -1,22 +1,20 @@
 import 'package:flutter/material.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'app/app_router.dart';
-import 'theme/app_theme.dart';
 
-void main() {
-  runApp(const ProviderScope(child: MyApp()));
+import 'package:intl/date_symbol_data_local.dart';
+
+import 'app/app.dart';
+import 'core/config/env_config.dart';
+import 'core/storage/jwt_token_locator.dart';
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  JwtTokenLocator.useSecureDefaultStore();
+
+  await initializeDateFormatting(EnvConfig.localeDefault);
+
+  runApp(const ProviderScope(child: BudgetlyApp()));
 }
 
-class MyApp extends ConsumerWidget {
-  const MyApp({super.key});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final router = ref.watch(appRouterProvider);
-    return MaterialApp.router(
-      title: 'Budgetly',
-      theme: AppTheme.lightTheme,
-      routerConfig: router,
-    );
-  }
-}

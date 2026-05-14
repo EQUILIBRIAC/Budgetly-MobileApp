@@ -1,22 +1,17 @@
-import 'package:budgetly_app/screens/forgot_password_screen.dart';
+import 'package:budgetly_app/app/l10n/app_strings.dart';
+import 'package:budgetly_app/features/auth/presentation/screens/forgot_password_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  testWidgets('forgot password renderiza título y botón', (tester) async {
+  testWidgets('Recuperación: título y vuelta a login sin formulario API', (
+    tester,
+  ) async {
     await tester.pumpWidget(const MaterialApp(home: ForgotPasswordScreen()));
 
-    expect(find.text('Recuperar contraseña'), findsOneWidget);
-    expect(find.text('Enviar enlace'), findsOneWidget);
-  });
-
-  testWidgets('forgot password valida correo inválido', (tester) async {
-    await tester.pumpWidget(const MaterialApp(home: ForgotPasswordScreen()));
-
-    await tester.enterText(find.byType(TextField), 'correo_invalido');
-    await tester.tap(find.text('Enviar enlace'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Ingresa un correo válido.'), findsOneWidget);
+    expect(find.text(AppStrings.forgotPasswordTitle), findsOneWidget);
+    expect(find.text(AppStrings.forgotPasswordBackToLogin), findsOneWidget);
+    expect(find.textContaining('Swagger'), findsOneWidget);
+    expect(find.byType(TextField), findsNothing);
   });
 }
