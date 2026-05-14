@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 
 import 'package:budgetly_app/features/auth/presentation/providers/auth_providers.dart';
 import 'package:budgetly_app/app/router/app_routes.dart';
+import 'package:budgetly_app/app/theme/app_colors.dart';
 import 'package:budgetly_app/core/network/api_failure.dart';
 import 'package:budgetly_app/features/representative/presentation/providers/representative_provider.dart';
 
@@ -31,12 +32,34 @@ class RepresentativeDashboardLayout extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final routeIdx =
+        _items.indexWhere((item) => item.route == currentRoute);
+    final navSelectedIndex = routeIdx >= 0 ? routeIdx : 0;
+
     return Scaffold(
+      backgroundColor: AppColors.lightGray,
       appBar: AppBar(
-        title: const Text('Panel representante'),
+        title: const Text(
+          'Panel representante',
+          style: TextStyle(
+            color: AppColors.navy,
+            fontWeight: FontWeight.w600,
+            fontSize: 18,
+          ),
+        ),
+        backgroundColor: AppColors.white,
+        foregroundColor: AppColors.navy,
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Container(height: 1, color: AppColors.borderGray),
+        ),
         actions: [
           IconButton(
+            tooltip: 'Cerrar sesión',
             icon: const Icon(Icons.logout),
+            color: AppColors.teal,
             onPressed: () async {
               await ref.read(authControllerProvider).signOut();
               if (context.mounted) context.go(AppRoutes.login);
@@ -46,17 +69,42 @@ class RepresentativeDashboardLayout extends ConsumerWidget {
       ),
       body: child,
       floatingActionButton: floatingActionButton,
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _items.indexWhere((item) => item.route == currentRoute),
-        onDestinationSelected: (index) => context.go(_items[index].route),
-        destinations: _items
-            .map(
-              (item) => NavigationDestination(
-                icon: Icon(item.icon),
-                label: item.label,
-              ),
-            )
-            .toList(),
+      bottomNavigationBar: Theme(
+        data: Theme.of(context).copyWith(
+          navigationBarTheme: NavigationBarThemeData(
+            indicatorColor: AppColors.mint.withValues(alpha: 0.45),
+            labelTextStyle: WidgetStateProperty.resolveWith((states) {
+              final sel = states.contains(WidgetState.selected);
+              return TextStyle(
+                fontSize: 11,
+                fontWeight: sel ? FontWeight.w700 : FontWeight.w500,
+                color: sel ? AppColors.teal : AppColors.textGray,
+              );
+            }),
+            iconTheme: WidgetStateProperty.resolveWith((states) {
+              final sel = states.contains(WidgetState.selected);
+              return IconThemeData(
+                color: sel ? AppColors.teal : AppColors.labelGray,
+                size: 22,
+              );
+            }),
+          ),
+        ),
+        child: NavigationBar(
+          height: 72,
+          backgroundColor: AppColors.white,
+          surfaceTintColor: Colors.transparent,
+          selectedIndex: navSelectedIndex,
+          onDestinationSelected: (index) => context.go(_items[index].route),
+          destinations: _items
+              .map(
+                (item) => NavigationDestination(
+                  icon: Icon(item.icon),
+                  label: item.label,
+                ),
+              )
+              .toList(),
+        ),
       ),
     );
   }
@@ -76,7 +124,7 @@ class RepresentativeDashboardScreen extends ConsumerWidget {
         builder: (data) {
           final currencySymbol = data.currency == 'USD' ? '\$' : 'S/';
           return ListView(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
             children: [
               _MetricCard(
                 title: 'Total facturas',
@@ -116,6 +164,8 @@ class RepresentativeHouseholdsScreen extends ConsumerWidget {
       currentRoute: AppRoutes.repHouseholds,
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showCreateHouseholdDialog(context, ref),
+        backgroundColor: AppColors.teal,
+        foregroundColor: AppColors.white,
         icon: const Icon(Icons.add),
         label: const Text('Nuevo hogar'),
       ),
@@ -128,7 +178,7 @@ class RepresentativeHouseholdsScreen extends ConsumerWidget {
             return const _RepEmpty(message: 'No se encontró información del hogar.');
           }
           return ListView(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 88),
             children: [
               _MetricCard(
                 title: household.name,
@@ -155,6 +205,8 @@ class RepresentativeMembersScreen extends ConsumerWidget {
       currentRoute: AppRoutes.repMembers,
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showCreateMemberDialog(context, ref),
+        backgroundColor: AppColors.teal,
+        foregroundColor: AppColors.white,
         icon: const Icon(Icons.person_add_alt_1),
         label: const Text('Agregar miembro'),
       ),
@@ -166,11 +218,17 @@ class RepresentativeMembersScreen extends ConsumerWidget {
             return const _RepEmpty(message: 'Aún no hay miembros registrados.');
           }
           return ListView.builder(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 88),
             itemCount: data.members.length,
             itemBuilder: (context, index) {
               final member = data.members[index];
               return Card(
+                elevation: 0,
+                color: AppColors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: const BorderSide(color: AppColors.borderGray),
+                ),
                 child: ListTile(
                   leading: const Icon(Icons.person_outline),
                   title: Text(member.name ?? 'Sin nombre'),
@@ -202,7 +260,7 @@ class RepresentativeBillsScreen extends ConsumerWidget {
           }
           final formatter = DateFormat('yyyy-MM-dd');
           return ListView.builder(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
             itemCount: data.bills.length,
             itemBuilder: (context, index) {
               final bill = data.bills[index];
@@ -210,6 +268,12 @@ class RepresentativeBillsScreen extends ConsumerWidget {
                   ? 'Sin fecha'
                   : formatter.format(bill.paymentDay!);
               return Card(
+                elevation: 0,
+                color: AppColors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: const BorderSide(color: AppColors.borderGray),
+                ),
                 child: ListTile(
                   leading: const Icon(Icons.receipt_long_outlined),
                   title: Text(bill.description),
@@ -235,6 +299,8 @@ class RepresentativeContributionsScreen extends ConsumerWidget {
       currentRoute: AppRoutes.repContributions,
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showCreateContributionDialog(context, ref),
+        backgroundColor: AppColors.teal,
+        foregroundColor: AppColors.white,
         icon: const Icon(Icons.add_card),
         label: const Text('Nueva contribución'),
       ),
@@ -246,11 +312,17 @@ class RepresentativeContributionsScreen extends ConsumerWidget {
             return const _RepEmpty(message: 'No hay contribuciones registradas.');
           }
           return ListView.builder(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 88),
             itemCount: data.contributions.length,
             itemBuilder: (context, index) {
               final contribution = data.contributions[index];
               return Card(
+                elevation: 0,
+                color: AppColors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: const BorderSide(color: AppColors.borderGray),
+                ),
                 child: ListTile(
                   leading: const Icon(Icons.payments_outlined),
                   title: Text(contribution.description ?? 'Sin descripción'),
@@ -478,22 +550,56 @@ class RepresentativeSettingsScreen extends ConsumerWidget {
     return RepresentativeDashboardLayout(
       currentRoute: AppRoutes.repSettings,
       child: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('Correo: ${auth.currentUser?.email ?? '-'}'),
-              const SizedBox(height: 12),
-              ElevatedButton.icon(
-                onPressed: () async {
-                  await ref.read(authControllerProvider).signOut();
-                  if (context.mounted) context.go(AppRoutes.login);
-                },
-                icon: const Icon(Icons.logout),
-                label: const Text('Cerrar sesión'),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: Card(
+              elevation: 0,
+              color: AppColors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+                side: const BorderSide(color: AppColors.borderGray),
               ),
-            ],
+              child: Padding(
+                padding: const EdgeInsets.all(22),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'Tu cuenta',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            color: AppColors.navy,
+                            fontWeight: FontWeight.w700,
+                          ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      auth.currentUser?.email ?? '-',
+                      style: const TextStyle(
+                        color: AppColors.textGray,
+                        fontSize: 15,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    FilledButton.icon(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.teal,
+                        foregroundColor: AppColors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      onPressed: () async {
+                        await ref.read(authControllerProvider).signOut();
+                        if (context.mounted) context.go(AppRoutes.login);
+                      },
+                      icon: const Icon(Icons.logout),
+                      label: const Text('Cerrar sesión'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
         ),
       ),
@@ -516,21 +622,43 @@ class _AsyncRepView extends StatelessWidget {
   Widget build(BuildContext context) {
     return state.when(
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (error, _) => Center(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.error_outline, color: Colors.red),
-              const SizedBox(height: 8),
-              Text(
-                ApiFailure.wrap(error).messageEs,
-                textAlign: TextAlign.center,
+      error: (error, _) => LayoutBuilder(
+        builder: (context, constraints) => SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.error_outline, color: Colors.red.shade700, size: 48),
+                  const SizedBox(height: 16),
+                  Text(
+                    ApiFailure.wrap(error).messageEs,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: AppColors.textGray,
+                      height: 1.45,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.teal,
+                      foregroundColor: AppColors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 12,
+                      ),
+                    ),
+                    onPressed: onRetry,
+                    icon: const Icon(Icons.refresh, size: 20),
+                    label: const Text('Reintentar'),
+                  ),
+                ],
               ),
-              const SizedBox(height: 8),
-              ElevatedButton(onPressed: onRetry, child: const Text('Reintentar')),
-            ],
+            ),
           ),
         ),
       ),
@@ -546,7 +674,31 @@ class _RepEmpty extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(child: Text(message));
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.inbox_outlined,
+              size: 56,
+              color: AppColors.labelGray.withValues(alpha: 0.85),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: AppColors.textGray,
+                fontSize: 15,
+                height: 1.4,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -565,15 +717,54 @@ class _MetricCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
-      child: ListTile(
-        title: Text(title),
-        subtitle: Text(subtitle),
-        trailing: Text(
-          value,
-          style: Theme.of(context)
-              .textTheme
-              .titleMedium
-              ?.copyWith(fontWeight: FontWeight.bold),
+      elevation: 0,
+      color: AppColors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: AppColors.borderGray),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.navy,
+                      fontSize: 15,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      color: AppColors.labelGray,
+                      fontSize: 13,
+                      height: 1.25,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Flexible(
+              child: Text(
+                value,
+                textAlign: TextAlign.end,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 17,
+                  color: AppColors.teal,
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

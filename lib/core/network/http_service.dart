@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../auth/session_revoker.dart';
@@ -55,6 +56,39 @@ class HttpService {
     );
   }
 
+  Future<http.Response> _putRaw(
+    String endpoint, {
+    required Map<String, dynamic> body,
+  }) async {
+    final url = Uri.parse('$baseUrl$endpoint');
+    final headers = {
+      'Content-Type': 'application/json',
+      ...ApiConfig.defaultHeaders,
+      if (_token != null) 'Authorization': 'Bearer $_token',
+    };
+
+    return _withRetry(
+      () => http
+          .put(
+            url,
+            headers: headers,
+            body: jsonEncode(body),
+          )
+          .timeout(ApiConfig.connectionTimeout),
+    );
+  }
+
+  void _debugLog(String verb, String endpoint, http.Response response) {
+    if (!kDebugMode) return;
+    final raw = response.body;
+    final snippet =
+        raw.length > 220 ? '${raw.substring(0, 220)}…' : raw;
+    debugPrint(
+      '[HTTP] $verb $endpoint → ${response.statusCode} (${raw.length} B) '
+      '${snippet.replaceAll(RegExp(r'\s+'), ' ')}',
+    );
+  }
+
   void _onUnauthorized(int statusCode) {
     if (statusCode != 401 && statusCode != 403) return;
     if (_token == null || _token!.isEmpty) return;
@@ -92,6 +126,7 @@ class HttpService {
   }) async {
     try {
       final response = await _postRaw(endpoint, body: body);
+      _debugLog('POST', endpoint, response);
       final code = response.statusCode;
       if (code >= 200 && code < 300) {
         return _decodeJsonMap(response.body, verb: 'POST $endpoint');
@@ -107,13 +142,40 @@ class HttpService {
         'Tiempo de espera al contactar ${EnvConfig.apiBaseUrl}',
       );
     } catch (_) {
-      throw NetworkException('Error de red inesperado al llamar POST $endpoint');
+      throw NetworkException('Fallo inesperado en POST $endpoint');
+    }
+  }
+
+  Future<Map<String, dynamic>> put(
+    String endpoint, {
+    required Map<String, dynamic> body,
+  }) async {
+    try {
+      final response = await _putRaw(endpoint, body: body);
+      _debugLog('PUT', endpoint, response);
+      final code = response.statusCode;
+      if (code >= 200 && code < 300) {
+        return _decodeJsonMap(response.body, verb: 'PUT $endpoint');
+      }
+      _onUnauthorized(code);
+      throw _toNetworkException(code, response.body);
+    } on NetworkException {
+      rethrow;
+    } on http.ClientException catch (e) {
+      throw _connectionException(e.message);
+    } on TimeoutException {
+      throw NetworkException(
+        'Tiempo de espera al contactar ${EnvConfig.apiBaseUrl}',
+      );
+    } catch (_) {
+      throw NetworkException('Fallo inesperado en PUT $endpoint');
     }
   }
 
   Future<Map<String, dynamic>> get(String endpoint) async {
     try {
       final response = await _getRaw(endpoint);
+      _debugLog('GET', endpoint, response);
       final code = response.statusCode;
       if (code >= 200 && code < 300) {
         return _decodeJsonMap(response.body, verb: 'GET $endpoint');
@@ -129,16 +191,14 @@ class HttpService {
         'Tiempo de espera al contactar ${EnvConfig.apiBaseUrl}',
       );
     } catch (_) {
-      throw NetworkException('Error de red inesperado al llamar GET $endpoint');
+      throw NetworkException('Fallo inesperado en GET $endpoint');
     }
   }
 
   NetworkException _connectionException([String? detail]) {
     final base =
-        'No se pudo conectar al servidor. Comprueba que el API está en ejecución '
-        'y la URL (por defecto: Azure desarrollo). Puedes forzar otro host con '
-        '--dart-define=API_BASE_URL=...\n '
-        'Base actual: ${EnvConfig.apiBaseUrl}';
+        'Sin conexión o el servidor no está disponible. Revisa Wi‑Fi/VPN y que '
+        'el API responda. URL base: ${EnvConfig.apiBaseUrl}';
     if (detail != null && detail.trim().isNotEmpty) {
       return NetworkException('$base\n Detalle: $detail');
     }

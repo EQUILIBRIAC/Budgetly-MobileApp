@@ -1,11 +1,13 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:budgetly_app/core/config/api_paths.dart';
 import 'package:budgetly_app/core/config/env_config.dart';
 import 'package:budgetly_app/domain/entities/household_entities.dart';
 import 'package:budgetly_app/domain/entities/contribution_entities.dart';
 import 'package:budgetly_app/core/network/http_service.dart';
 import 'package:budgetly_app/core/storage/storage_service.dart';
 import 'package:budgetly_app/features/member/presentation/widgets/member_dashboard_layout.dart';
+import 'package:budgetly_app/app/theme/app_colors.dart';
 
 class MemberHouseholdStatusScreen extends StatefulWidget {
   const MemberHouseholdStatusScreen({super.key});
@@ -65,21 +67,23 @@ class _MemberHouseholdStatusScreenState
       }
 
       final memberRes =
-          await _httpService.get('/api/v1/household/$householdId/members');
+          await _httpService.get(ApiPaths.householdMembersByHousehold(householdId));
       final billsRes =
-          await _httpService.get('/api/v1/household/$householdId/bills');
-      final contributionsRes = await _httpService
-          .get('/api/v1/household/$householdId/contributions');
+          await _httpService.get(ApiPaths.billsByHousehold(householdId));
+      final contributionsRes =
+          await _httpService.get(ApiPaths.contributionsByHousehold(householdId));
       final memberContribsRes =
-          await _httpService.get('/api/v1/member-contributions');
+          await _httpService.get(ApiPaths.memberContributionRoot);
       final householdRes =
-          await _httpService.get('/api/v1/household/$householdId');
+          await _httpService.get(ApiPaths.houseHold(householdId));
 
       final members = _parseMembers(memberRes);
       final bills = _parseBills(billsRes);
       final contributions = _parseContributions(contributionsRes);
       final memberContributions = _parseMemberContributions(memberContribsRes);
-      final currency = (householdRes['currency'] == 2) ? 'USD' : 'PEN';
+      final hMap = ApiJson.objectData(householdRes);
+      final currency =
+          hMap != null ? Household.fromJson(hMap).currency : 'PEN';
 
       final memberIds = members.map((m) => m.id).toSet();
       final filteredEntries = memberContributions
@@ -303,35 +307,19 @@ class _MemberHouseholdStatusScreenState
   }
 
   List<HouseholdMember> _parseMembers(Map<String, dynamic> res) {
-    final list = res['items'] as List? ?? res as List? ?? [];
-    return list
-        .map((item) => HouseholdMember.fromJson(
-            item is Map<String, dynamic> ? item : {}))
-        .toList();
+    return ApiJson.listData(res).map(HouseholdMember.fromJson).toList();
   }
 
   List<Bill> _parseBills(Map<String, dynamic> res) {
-    final list = res['items'] as List? ?? res as List? ?? [];
-    return list
-        .map((item) =>
-            Bill.fromJson(item is Map<String, dynamic> ? item : {}))
-        .toList();
+    return ApiJson.listData(res).map(Bill.fromJson).toList();
   }
 
   List<Contribution> _parseContributions(Map<String, dynamic> res) {
-    final list = res['items'] as List? ?? res as List? ?? [];
-    return list
-        .map((item) =>
-            Contribution.fromJson(item is Map<String, dynamic> ? item : {}))
-        .toList();
+    return ApiJson.listData(res).map(Contribution.fromJson).toList();
   }
 
   List<MemberContribution> _parseMemberContributions(Map<String, dynamic> res) {
-    final list = res['items'] as List? ?? res as List? ?? [];
-    return list
-        .map((item) => MemberContribution.fromJson(
-            item is Map<String, dynamic> ? item : {}))
-        .toList();
+    return ApiJson.listData(res).map(MemberContribution.fromJson).toList();
   }
 
   String _formatCurrency(double amount, String currency) {
@@ -383,7 +371,7 @@ class _MemberHouseholdStatusScreenState
                               style: TextStyle(
                                 fontSize: 28,
                                 fontWeight: FontWeight.w800,
-                                color: Color(0xFF1a1a1a),
+                                color: AppColors.navy,
                               ),
                             ),
                             if (_periodOptions.isNotEmpty)

@@ -1,11 +1,13 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:budgetly_app/app/router/app_routes.dart';
+import 'package:budgetly_app/core/config/api_paths.dart';
 import 'package:budgetly_app/core/config/env_config.dart';
 import 'package:budgetly_app/core/network/http_service.dart';
 import 'package:budgetly_app/core/storage/storage_service.dart';
 import 'package:budgetly_app/domain/entities/household_entities.dart';
 import 'package:budgetly_app/features/member/presentation/widgets/member_dashboard_layout.dart';
+import 'package:budgetly_app/app/theme/app_colors.dart';
 
 class MemberSearchHouseholdScreen extends StatefulWidget {
   const MemberSearchHouseholdScreen({super.key});
@@ -59,16 +61,16 @@ class _MemberSearchHouseholdScreenState
       if (token != null) {
         httpService.setToken(token);
       }
-      final response = await httpService.get('/api/v1/household/$q');
+      final response = await httpService.get(ApiPaths.houseHold(q));
 
-      if (response['data'] == null) {
+      final raw = ApiJson.objectData(response);
+      if (raw == null) {
         setState(() {
           _message = 'No se encontró un hogar con ese ID.';
           _messageSeverity = 'warn';
         });
       } else {
-        final household =
-            Household.fromJson(response['data'] as Map<String, dynamic>);
+        final household = Household.fromJson(raw);
         setState(() {
           _foundHousehold = household;
           _message = '';
@@ -123,10 +125,23 @@ class _MemberSearchHouseholdScreenState
         httpService.setToken(token);
       }
 
-      // Join household
+      final uid = int.tryParse(userId);
+      if (uid == null) {
+        setState(() {
+          _message = 'El ID de usuario debe ser numérico para la API.';
+          _messageSeverity = 'error';
+        });
+        return;
+      }
+
       await httpService.post(
-        '/api/v1/household/${_foundHousehold!.id}/members',
-        body: {'userId': userId},
+        ApiPaths.householdMemberRoot,
+        body: {
+          'householdId': _foundHousehold!.id,
+          'userId': uid,
+          'isRepresentative': false,
+          'income': 0,
+        },
       );
 
       // Update user in storage
@@ -181,7 +196,7 @@ class _MemberSearchHouseholdScreenState
     return MemberDashboardLayout(
       currentRoute: 'member-search-household',
       child: Scaffold(
-        backgroundColor: const Color(0xFFF8F9FA),
+        backgroundColor: AppColors.lightGray,
         body: Center(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(16),
@@ -214,7 +229,7 @@ class _MemberSearchHouseholdScreenState
                         style: TextStyle(
                           fontSize: 28,
                           fontWeight: FontWeight.bold,
-                          color: Color(0xFF1a1a1a),
+                          color: AppColors.navy,
                         ),
                       ),
                       const SizedBox(height: 20),
@@ -225,7 +240,7 @@ class _MemberSearchHouseholdScreenState
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: 16,
-                          color: Color(0xFF444444),
+                          color: AppColors.textGray,
                           height: 1.5,
                         ),
                       ),
@@ -240,7 +255,7 @@ class _MemberSearchHouseholdScreenState
                               decoration: InputDecoration(
                                 hintText: 'Ej: HH1728345678901',
                                 hintStyle:
-                                    const TextStyle(color: Color(0xFFAAAAAA)),
+                                    const TextStyle(color: AppColors.placeholder),
                                 contentPadding: const EdgeInsets.symmetric(
                                   horizontal: 16,
                                   vertical: 12,
@@ -248,19 +263,19 @@ class _MemberSearchHouseholdScreenState
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(8),
                                   borderSide: const BorderSide(
-                                    color: Color(0xFFE0E0E0),
+                                    color: AppColors.borderGray,
                                   ),
                                 ),
                                 enabledBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(8),
                                   borderSide: const BorderSide(
-                                    color: Color(0xFFE0E0E0),
+                                    color: AppColors.borderGray,
                                   ),
                                 ),
                                 focusedBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(8),
                                   borderSide: const BorderSide(
-                                    color: Color(0xFF2f7fdc),
+                                    color: AppColors.teal,
                                     width: 2,
                                   ),
                                 ),
@@ -275,9 +290,9 @@ class _MemberSearchHouseholdScreenState
                             child: ElevatedButton(
                               onPressed: _isSearching ? null : _onSearch,
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF2f7fdc),
+                                backgroundColor: AppColors.teal,
                                 disabledBackgroundColor:
-                                    const Color(0xFFBDBDBD),
+                                    AppColors.placeholder,
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(8),
                                 ),
@@ -336,11 +351,11 @@ class _MemberSearchHouseholdScreenState
                           width: double.infinity,
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFF0F7FF),
+color: AppColors.mint.withValues(alpha: 0.35),
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
                               color:
-                                  const Color(0xFF2f7fdc).withValues(alpha: 0.2),
+                                  AppColors.teal.withValues(alpha: 0.2),
                             ),
                           ),
                           child: Column(
@@ -351,7 +366,7 @@ class _MemberSearchHouseholdScreenState
                                 style: TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.bold,
-                                  color: Color(0xFF256bb7),
+                                  color: AppColors.teal,
                                 ),
                               ),
                               const SizedBox(height: 8),
@@ -360,7 +375,7 @@ class _MemberSearchHouseholdScreenState
                                 style: const TextStyle(
                                   fontSize: 18,
                                   fontWeight: FontWeight.bold,
-                                  color: Color(0xFF1a1a1a),
+                                  color: AppColors.navy,
                                 ),
                               ),
                               const SizedBox(height: 4),
@@ -368,7 +383,7 @@ class _MemberSearchHouseholdScreenState
                                 _foundHousehold!.description,
                                 style: const TextStyle(
                                   fontSize: 14,
-                                  color: Color(0xFF666666),
+                                  color: AppColors.labelGray,
                                 ),
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
@@ -387,8 +402,8 @@ class _MemberSearchHouseholdScreenState
                                   ? null
                                   : _onJoin,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF2f7fdc),
-                            disabledBackgroundColor: const Color(0xFFBDBDBD),
+                            backgroundColor: AppColors.teal,
+                            disabledBackgroundColor: AppColors.placeholder,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(10),
                             ),
@@ -418,12 +433,12 @@ class _MemberSearchHouseholdScreenState
                       const SizedBox(height: 20),
 
                       // Note
-                      const Text(
+                      Text(
                         'Recuerda que este proceso es opcional. También puedes esperar a que tu representante te agregue manualmente.',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: 13,
-                          color: Color(0xFF666666),
+                          color: AppColors.labelGray.withValues(alpha: 0.95),
                           height: 1.4,
                         ),
                       ),

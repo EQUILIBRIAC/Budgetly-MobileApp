@@ -1,10 +1,12 @@
 ﻿import 'package:flutter/material.dart';
+import 'package:budgetly_app/core/config/api_paths.dart';
 import 'package:budgetly_app/core/config/env_config.dart';
 import 'package:budgetly_app/domain/entities/contribution_entities.dart';
 import 'package:budgetly_app/domain/entities/household_entities.dart';
 import 'package:budgetly_app/core/network/http_service.dart';
 import 'package:budgetly_app/core/storage/storage_service.dart';
 import 'package:budgetly_app/features/member/presentation/widgets/member_dashboard_layout.dart';
+import 'package:budgetly_app/app/theme/app_colors.dart';
 
 class MemberContributionsScreen extends StatefulWidget {
   const MemberContributionsScreen({super.key});
@@ -103,9 +105,9 @@ class _MemberContributionsScreenState extends State<MemberContributionsScreen> {
   ) async {
     try {
       final response = await httpService.get(
-        '/api/v1/household/$householdId/members',
+        ApiPaths.householdMembersByHousehold(householdId),
       );
-      final list = (response['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+      final list = ApiJson.listData(response);
       return list.map((json) => HouseholdMember.fromJson(json)).toList();
     } catch (e) {
       return [];
@@ -118,9 +120,9 @@ class _MemberContributionsScreenState extends State<MemberContributionsScreen> {
   ) async {
     try {
       final response = await httpService.get(
-        '/api/v1/household/$householdId/contributions',
+        ApiPaths.contributionsByHousehold(householdId),
       );
-      final list = (response['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+      final list = ApiJson.listData(response);
       return list.map((json) => Contribution.fromJson(json)).toList();
     } catch (e) {
       return [];
@@ -131,8 +133,8 @@ class _MemberContributionsScreenState extends State<MemberContributionsScreen> {
     HttpService httpService,
   ) async {
     try {
-      final response = await httpService.get('/api/v1/member-contributions');
-      final list = (response['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+      final response = await httpService.get(ApiPaths.memberContributionRoot);
+      final list = ApiJson.listData(response);
       return list.map((json) => MemberContribution.fromJson(json)).toList();
     } catch (e) {
       return [];
@@ -144,10 +146,8 @@ class _MemberContributionsScreenState extends State<MemberContributionsScreen> {
     String householdId,
   ) async {
     try {
-      final response = await httpService.get(
-        '/api/v1/household/$householdId/bills',
-      );
-      final list = (response['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+      final response = await httpService.get(ApiPaths.billsByHousehold(householdId));
+      final list = ApiJson.listData(response);
       return list.map((json) => Bill.fromJson(json)).toList();
     } catch (e) {
       return [];
@@ -180,11 +180,19 @@ class _MemberContributionsScreenState extends State<MemberContributionsScreen> {
       if (token != null && token.isNotEmpty) {
         httpService.setToken(token);
       }
-      await httpService.post(
-        '/api/v1/household-member/$_memberId',
+      final user = await StorageService.getUser();
+      if (user == null) throw Exception('Usuario no encontrado');
+      final userIdStr = _toString(user['id']);
+      final uid = int.tryParse(userIdStr ?? '');
+      if (uid == null) throw Exception('ID de usuario inválido');
+
+      await httpService.put(
+        ApiPaths.householdMemberById(_memberId),
         body: {
+          'householdId': null,
+          'userId': uid,
+          'isRepresentative': null,
           'income': double.parse(_incomeController.text),
-          'updatedAt': DateTime.now().toIso8601String(),
         },
       );
 
@@ -280,7 +288,7 @@ class _MemberContributionsScreenState extends State<MemberContributionsScreen> {
                         style: TextStyle(
                           fontSize: 28,
                           fontWeight: FontWeight.bold,
-                          color: Color(0xFF0F172A),
+                          color: AppColors.navy,
                         ),
                       ),
                       const SizedBox(height: 20),
@@ -305,7 +313,7 @@ class _MemberContributionsScreenState extends State<MemberContributionsScreen> {
                                 'Este dato solo es visible para ti y nos permite estimar metas personalizadas.',
                                 style: TextStyle(
                                   fontSize: 13,
-                                  color: Color(0xFF6B7280),
+                                  color: AppColors.labelGray,
                                 ),
                               ),
                               const SizedBox(height: 12),
@@ -439,7 +447,7 @@ class _MemberContributionsScreenState extends State<MemberContributionsScreen> {
                                   ? const Text(
                                       'No tienes contribuciones asignadas aún.',
                                       style: TextStyle(
-                                        color: Color(0xFF6B7280),
+                                        color: AppColors.labelGray,
                                       ),
                                     )
                                   : SingleChildScrollView(

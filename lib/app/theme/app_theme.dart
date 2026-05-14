@@ -10,7 +10,7 @@ class AppTheme {
         seedColor: AppColors.teal,
         brightness: Brightness.light,
       ),
-      scaffoldBackgroundColor: AppColors.white,
+      scaffoldBackgroundColor: AppColors.lightGray,
       fontFamily: 'DM Sans',
       inputDecorationTheme: InputDecorationTheme(
         contentPadding:

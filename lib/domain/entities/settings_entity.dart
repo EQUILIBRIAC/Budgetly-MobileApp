@@ -43,6 +43,14 @@ class UserSettings {
         'updatedAt': updatedAt.toIso8601String(),
       };
 
+  /// Cuerpo POST/PUT según catálogo API (sin enviar id vacío en creación).
+  Map<String, dynamic> toApiBody() => {
+        'userId': int.tryParse(userId) ?? userId,
+        'language': language,
+        'darkMode': darkMode,
+        'notificationEnabled': notificationEnabled,
+      };
+
   UserSettings copyWith({
     String? id,
     String? userId,

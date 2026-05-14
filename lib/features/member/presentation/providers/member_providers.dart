@@ -1,5 +1,6 @@
 ﻿import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:budgetly_app/core/config/api_paths.dart';
 import 'package:budgetly_app/core/config/env_config.dart';
 import 'package:budgetly_app/domain/entities/contribution_entities.dart';
 import 'package:budgetly_app/domain/entities/household_entities.dart';
@@ -33,27 +34,20 @@ final memberDashboardProvider = FutureProvider<({
 
   final http = await _authorizedHttp();
   final responses = await Future.wait([
-    http.get('/api/v1/household/$householdId'),
-    http.get('/api/v1/household/$householdId/members'),
-    http.get('/api/v1/household/$householdId/bills'),
+    http.get(ApiPaths.houseHold(householdId)),
+    http.get(ApiPaths.householdMembersByHousehold(householdId)),
+    http.get(ApiPaths.billsByHousehold(householdId)),
   ]);
 
-  final householdRaw = responses[0]['data'];
-  final membersRaw = responses[1]['data'];
-  final billsRaw = responses[2]['data'];
+  final householdRaw = ApiJson.objectData(responses[0]);
+  final household =
+      householdRaw == null ? null : Household.fromJson(householdRaw);
 
-  final household = householdRaw is Map<String, dynamic>
-      ? Household.fromJson(householdRaw)
-      : null;
-  final members = membersRaw is List
-      ? membersRaw
-          .whereType<Map<String, dynamic>>()
-          .map(HouseholdMember.fromJson)
-          .toList()
-      : <HouseholdMember>[];
-  final bills = billsRaw is List
-      ? billsRaw.whereType<Map<String, dynamic>>().map(Bill.fromJson).toList()
-      : <Bill>[];
+  final members = ApiJson.listData(responses[1])
+      .map(HouseholdMember.fromJson)
+      .toList();
+  final bills =
+      ApiJson.listData(responses[2]).map(Bill.fromJson).toList();
 
   return (household: household, members: members, bills: bills);
 });
@@ -62,13 +56,9 @@ final memberContributionsProvider = FutureProvider<List<MemberContribution>>((
   ref,
 ) async {
   final http = await _authorizedHttp();
-  final response = await http.get('/api/v1/member-contributions');
-  final data = response['data'];
-  if (data is! List) return <MemberContribution>[];
-  return data
-      .whereType<Map<String, dynamic>>()
-      .map(MemberContribution.fromJson)
-      .toList();
+  final response = await http.get(ApiPaths.memberContributionRoot);
+  final data = ApiJson.listData(response);
+  return data.map(MemberContribution.fromJson).toList();
 });
 
 final householdStatusProvider = FutureProvider<({
@@ -86,10 +76,10 @@ final searchHouseholdProvider = FutureProvider.family<List<Household>, String>((
   final trimmed = query.trim();
   if (trimmed.isEmpty) return <Household>[];
   final http = await _authorizedHttp();
-  final response = await http.get('/api/v1/household/search?query=$trimmed');
-  final data = response['data'];
-  if (data is! List) return <Household>[];
-  return data.whereType<Map<String, dynamic>>().map(Household.fromJson).toList();
+  final response = await http.get(ApiPaths.houseHold(trimmed));
+  final raw = ApiJson.objectData(response);
+  if (raw == null) return <Household>[];
+  return [Household.fromJson(raw)];
 });
 
 final settingsProvider = FutureProvider<UserSettings>((ref) async {
@@ -98,10 +88,10 @@ final settingsProvider = FutureProvider<UserSettings>((ref) async {
   if (userId.isEmpty) throw Exception('Usuario inválido.');
 
   final http = await _authorizedHttp();
-  final response = await http.get('/api/v1/settings/$userId');
-  final data = response['data'];
-  if (data is Map<String, dynamic>) {
-    return UserSettings.fromJson(data);
+  final response = await http.get(ApiPaths.settingsByUserQuery(userId));
+  final parsed = ApiJson.objectData(response);
+  if (parsed != null) {
+    return UserSettings.fromJson(parsed);
   }
   return UserSettings(
     id: '',
@@ -113,4 +103,3 @@ final settingsProvider = FutureProvider<UserSettings>((ref) async {
     updatedAt: DateTime.now(),
   );
 });
-

@@ -1,11 +1,13 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:budgetly_app/core/config/api_paths.dart';
 import 'package:budgetly_app/core/config/env_config.dart';
 import 'package:budgetly_app/domain/entities/contribution_entities.dart';
 import 'package:budgetly_app/domain/entities/household_entities.dart';
 import 'package:budgetly_app/core/network/http_service.dart';
 import 'package:budgetly_app/core/storage/storage_service.dart';
 import 'package:budgetly_app/features/member/presentation/widgets/member_dashboard_layout.dart';
+import 'package:budgetly_app/app/theme/app_colors.dart';
 
 class MemberDashboardScreen extends StatefulWidget {
   const MemberDashboardScreen({super.key});
@@ -93,8 +95,8 @@ class _MemberDashboardScreenState extends State<MemberDashboardScreen> {
   ) async {
     try {
       final response =
-          await httpService.get('/api/v1/household/$householdId/members');
-      final list = (response['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+          await httpService.get(ApiPaths.householdMembersByHousehold(householdId));
+      final list = ApiJson.listData(response);
       return list.map((json) => HouseholdMember.fromJson(json)).toList();
     } catch (e) {
       return [];
@@ -105,8 +107,8 @@ class _MemberDashboardScreenState extends State<MemberDashboardScreen> {
     HttpService httpService,
   ) async {
     try {
-      final response = await httpService.get('/api/v1/member-contributions');
-      final list = (response['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+      final response = await httpService.get(ApiPaths.memberContributionRoot);
+      final list = ApiJson.listData(response);
       return list.map((json) => MemberContribution.fromJson(json)).toList();
     } catch (e) {
       return [];
@@ -118,8 +120,8 @@ class _MemberDashboardScreenState extends State<MemberDashboardScreen> {
     String householdId,
   ) async {
     try {
-      final response = await httpService.get('/api/v1/household/$householdId/bills');
-      final list = (response['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+      final response = await httpService.get(ApiPaths.billsByHousehold(householdId));
+      final list = ApiJson.listData(response);
       return list.map((json) => Bill.fromJson(json)).toList();
     } catch (e) {
       return [];
@@ -131,8 +133,10 @@ class _MemberDashboardScreenState extends State<MemberDashboardScreen> {
     String householdId,
   ) async {
     try {
-      final response = await httpService.get('/api/v1/household/$householdId');
-      return response['data'] is List ? response['data'] : [response['data']];
+      final response = await httpService.get(ApiPaths.houseHold(householdId));
+      final map = ApiJson.objectData(response);
+      if (map == null) return [];
+      return [map];
     } catch (e) {
       return [];
     }
@@ -290,7 +294,7 @@ class _MemberDashboardScreenState extends State<MemberDashboardScreen> {
                         style: TextStyle(
                           fontSize: 28,
                           fontWeight: FontWeight.bold,
-                          color: Color(0xFF0F172A),
+                          color: AppColors.navy,
                         ),
                       ),
                       const SizedBox(height: 20),

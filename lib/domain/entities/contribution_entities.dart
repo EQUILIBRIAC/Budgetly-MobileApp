@@ -21,7 +21,9 @@ class Contribution {
     return Contribution(
       id: json['id'] ?? '',
       billId: json['billId'] ?? '',
-      householdId: json['householdId'] ?? '',
+      householdId: json['householdId']?.toString() ??
+          json['houseHoldId']?.toString() ??
+          '',
       description: json['description'],
       deadlineForMembers: DateTime.parse(
           json['deadlineForMembers'] ?? DateTime.now().toIso8601String()),

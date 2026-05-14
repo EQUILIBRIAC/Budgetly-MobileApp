@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import 'package:budgetly_app/features/auth/presentation/providers/auth_providers.dart';
 import 'package:budgetly_app/app/router/app_routes.dart';
+import 'package:budgetly_app/app/theme/app_colors.dart';
 
 class MemberDashboardLayout extends ConsumerStatefulWidget {
   final Widget child;
@@ -32,15 +33,21 @@ class _MemberDashboardLayoutState extends ConsumerState<MemberDashboardLayout> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        color: const Color(0xFFF8F9FA),
-        child: widget.child,
+      backgroundColor: AppColors.lightGray,
+      body: SafeArea(
+        bottom: false,
+        child: Container(
+          color: AppColors.lightGray,
+          width: double.infinity,
+          height: double.infinity,
+          child: widget.child,
+        ),
       ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: AppColors.white,
           border: Border(
-            top: BorderSide(color: const Color(0xFFE2E8F0), width: 1),
+            top: BorderSide(color: AppColors.borderGray, width: 1),
           ),
           boxShadow: [
             BoxShadow(
@@ -112,11 +119,11 @@ class _MemberDashboardLayoutState extends ConsumerState<MemberDashboardLayout> {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
           color: isActive
-              ? const Color(0xFF4FACFE).withValues(alpha: 0.1)
+              ? AppColors.teal.withValues(alpha: 0.12)
               : Colors.transparent,
           borderRadius: BorderRadius.circular(8),
           border: isActive
-              ? Border.all(color: const Color(0xFF4FACFE), width: 1.5)
+              ? Border.all(color: AppColors.teal, width: 1.5)
               : null,
         ),
         child: Column(
@@ -127,14 +134,14 @@ class _MemberDashboardLayoutState extends ConsumerState<MemberDashboardLayout> {
               width: 32,
               height: 32,
               decoration: BoxDecoration(
-                color: isActive ? const Color(0xFF4FACFE) : const Color(0xFFEEF2F7),
+                color: isActive ? AppColors.teal : AppColors.lightGray,
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Center(
                 child: Icon(
                   _getIconData(icon),
                   size: 18,
-                  color: isActive ? Colors.white : const Color(0xFF94A3B8),
+                  color: isActive ? AppColors.white : AppColors.labelGray,
                 ),
               ),
             ),
@@ -143,7 +150,7 @@ class _MemberDashboardLayoutState extends ConsumerState<MemberDashboardLayout> {
               label,
               style: TextStyle(
                 fontSize: 11,
-                color: isActive ? const Color(0xFF1D4ED8) : const Color(0xFF64748B),
+                color: isActive ? AppColors.teal : AppColors.textGray,
                 fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
               ),
               textAlign: TextAlign.center,

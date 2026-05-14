@@ -20,12 +20,23 @@ class Household {
       id: json['id'] ?? '',
       name: json['name'] ?? 'Mi Hogar',
       description: json['description'] ?? '',
-      currency: json['currency'] == 2 ? 'USD' : 'PEN',
+      currency: _currencyFromJson(json['currency']),
       createdAt:
           DateTime.parse(json['createdAt'] ?? DateTime.now().toIso8601String()),
       updatedAt:
           DateTime.parse(json['updatedAt'] ?? DateTime.now().toIso8601String()),
     );
+  }
+
+  static String _currencyFromJson(dynamic v) {
+    if (v == null) return 'PEN';
+    if (v is String) {
+      final u = v.toUpperCase();
+      if (u == 'USD') return 'USD';
+      return 'PEN';
+    }
+    if (v == 2) return 'USD';
+    return 'PEN';
   }
 
   Map<String, dynamic> toJson() => {
@@ -64,8 +75,10 @@ class HouseholdMember {
   factory HouseholdMember.fromJson(Map<String, dynamic> json) {
     return HouseholdMember(
       id: json['id'] ?? '',
-      userId: json['userId'] ?? '',
-      householdId: json['householdId'] ?? '',
+      userId: json['userId']?.toString() ?? '',
+      householdId: json['householdId']?.toString() ??
+          json['houseHoldId']?.toString() ??
+          '',
       name: json['name'],
       income: _parseDouble(json['income']),
       role: json['role'],
@@ -123,13 +136,17 @@ class Bill {
   factory Bill.fromJson(Map<String, dynamic> json) {
     return Bill(
       id: json['id'] ?? '',
-      householdId: json['householdId'] ?? '',
+      householdId: json['householdId']?.toString() ??
+          json['houseHoldId']?.toString() ??
+          '',
       description: json['description'] ?? 'Gasto',
       amount: _parseDouble(json['amount']) ?? 0.0,
       category: json['category'] ?? json['categoryName'] ?? json['type'],
       paymentDay: json['paymentDay'] != null
-          ? DateTime.parse(json['paymentDay'])
-          : null,
+          ? DateTime.tryParse(json['paymentDay'].toString())
+          : json['paymentDate'] != null
+              ? DateTime.tryParse(json['paymentDate'].toString())
+              : null,
       createdAt:
           DateTime.parse(json['createdAt'] ?? DateTime.now().toIso8601String()),
       updatedAt:

@@ -1,10 +1,12 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:budgetly_app/core/config/api_paths.dart';
 import 'package:budgetly_app/core/config/env_config.dart';
 import 'package:budgetly_app/domain/entities/settings_entity.dart';
 import 'package:budgetly_app/core/network/http_service.dart';
 import 'package:budgetly_app/core/storage/storage_service.dart';
 import 'package:budgetly_app/features/member/presentation/widgets/member_dashboard_layout.dart';
+import 'package:budgetly_app/app/theme/app_colors.dart';
 
 class MemberSettingsScreen extends StatefulWidget {
   const MemberSettingsScreen({super.key});
@@ -45,70 +47,58 @@ class _MemberSettingsScreenState extends State<MemberSettingsScreen> {
         _errorMessage = '';
       });
 
-      // Get token from storage and set it on the service
       final token = await StorageService.getToken();
       if (token != null) {
         _httpService.setToken(token);
       }
 
-      // Get user from storage
       final userJson = await StorageService.getUser();
       if (userJson == null) {
-        throw Exception('No user found');
+        throw Exception('Usuario no encontrado');
       }
 
       final userId = userJson['id']?.toString() ?? '';
       if (userId.isEmpty) {
-        throw Exception('Invalid user ID');
+        throw Exception('ID de usuario inválido');
       }
 
-      // Try to load settings from API
+      UserSettings loaded;
       try {
-        final response = await _httpService.get(
-          '/api/v1/settings/$userId',
-        );
-
-      if (response.isNotEmpty) {
-        final settings = UserSettings.fromJson(response);
-          setState(() {
-            _settings = settings;
-            _lastSaved = settings;
-          });
+        final response =
+            await _httpService.get(ApiPaths.settingsByUserQuery(userId));
+        final parsed = ApiJson.objectData(response);
+        if (parsed != null) {
+          loaded = UserSettings.fromJson(parsed);
         } else {
-          // Create default settings
-          final defaultSettings = UserSettings(
+          loaded = UserSettings(
             id: '',
             userId: userId,
-            language: 'en',
+            language: 'es',
             darkMode: false,
             notificationEnabled: true,
             createdAt: DateTime.now(),
             updatedAt: DateTime.now(),
           );
-          setState(() {
-            _settings = defaultSettings;
-            _lastSaved = defaultSettings;
-          });
         }
-      } catch (e) {
-        // Settings don't exist yet, create defaults
-        final defaultSettings = UserSettings(
+      } catch (_) {
+        loaded = UserSettings(
           id: '',
           userId: userId,
-          language: 'en',
+          language: 'es',
           darkMode: false,
           notificationEnabled: true,
           createdAt: DateTime.now(),
           updatedAt: DateTime.now(),
         );
-        setState(() {
-          _settings = defaultSettings;
-          _lastSaved = defaultSettings;
-        });
       }
+
+      setState(() {
+        _settings = loaded;
+        _lastSaved = loaded;
+      });
     } catch (e) {
       setState(() {
-        _errorMessage = 'Error loading settings: $e';
+        _errorMessage = 'Error al cargar ajustes: $e';
       });
     } finally {
       setState(() {
@@ -131,38 +121,43 @@ class _MemberSettingsScreenState extends State<MemberSettingsScreen> {
         updatedAt: DateTime.now(),
       );
 
-      late final Map<String, dynamic> response;
+      final payload = updatedSettings.toApiBody();
 
+      final Map<String, dynamic> response;
       if (updatedSettings.id.isEmpty) {
-        // Create new settings
         response = await _httpService.post(
-          '/api/v1/settings/create',
-          body: updatedSettings.toJson(),
+          ApiPaths.settingsRoot,
+          body: payload,
         );
       } else {
-        // Update existing settings
-        response = await _httpService.post(
-          '/api/v1/settings/${updatedSettings.id}',
-          body: updatedSettings.toJson(),
+        response = await _httpService.put(
+          ApiPaths.settingsById(updatedSettings.id),
+          body: payload,
         );
       }
 
-      final savedSettings = UserSettings.fromJson(response);
+      final parsed = ApiJson.objectData(response);
+      final savedSettings = parsed != null &&
+              (parsed['id'] != null || parsed['userId'] != null)
+          ? UserSettings.fromJson(parsed)
+          : updatedSettings.copyWith(updatedAt: DateTime.now());
+
       setState(() {
         _settings = savedSettings;
         _lastSaved = savedSettings;
-        _successMessage = 'Settings saved successfully!';
+        _successMessage = 'Ajustes guardados.';
       });
 
-      // Clear success message after 3 seconds
       Future.delayed(const Duration(seconds: 3), () {
-        setState(() {
-          _successMessage = '';
-        });
+        if (mounted) {
+          setState(() {
+            _successMessage = '';
+          });
+        }
       });
     } catch (e) {
       setState(() {
-        _errorMessage = 'Error saving settings: $e';
+        _errorMessage = 'Error al guardar ajustes: $e';
       });
     } finally {
       setState(() {
@@ -260,7 +255,7 @@ class _MemberSettingsScreenState extends State<MemberSettingsScreen> {
                             style: TextStyle(
                               fontSize: 24,
                               fontWeight: FontWeight.w800,
-                              color: Color(0xFF0f172a),
+                              color: AppColors.navy,
                             ),
                           ),
                           const SizedBox(height: 8),
@@ -361,7 +356,7 @@ class _MemberSettingsScreenState extends State<MemberSettingsScreen> {
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: Color(0xFF0f172a),
+              color: AppColors.navy,
             ),
           ),
           const SizedBox(height: 20),
@@ -375,7 +370,7 @@ class _MemberSettingsScreenState extends State<MemberSettingsScreen> {
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
-                  color: Color(0xFF0f172a),
+                  color: AppColors.navy,
                 ),
               ),
               const SizedBox(height: 8),
@@ -430,7 +425,7 @@ class _MemberSettingsScreenState extends State<MemberSettingsScreen> {
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
-                      color: Color(0xFF0f172a),
+                      color: AppColors.navy,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -452,7 +447,7 @@ class _MemberSettingsScreenState extends State<MemberSettingsScreen> {
                     );
                   });
                 },
-                activeThumbColor: const Color(0xFF275954),
+                activeThumbColor: AppColors.teal,
               ),
             ],
           ),
@@ -470,7 +465,7 @@ class _MemberSettingsScreenState extends State<MemberSettingsScreen> {
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
-                      color: Color(0xFF0f172a),
+                      color: AppColors.navy,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -492,7 +487,7 @@ class _MemberSettingsScreenState extends State<MemberSettingsScreen> {
                     );
                   });
                 },
-                activeThumbColor: const Color(0xFF275954),
+                activeThumbColor: AppColors.teal,
               ),
             ],
           ),
@@ -531,7 +526,7 @@ class _MemberSettingsScreenState extends State<MemberSettingsScreen> {
                           style: const TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w500,
-                            color: Color(0xFF0f172a),
+                            color: AppColors.navy,
                           ),
                         ),
                       ],
@@ -564,7 +559,7 @@ class _MemberSettingsScreenState extends State<MemberSettingsScreen> {
                           style: const TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w500,
-                            color: Color(0xFF0f172a),
+                            color: AppColors.navy,
                           ),
                         ),
                       ],
@@ -589,7 +584,7 @@ class _MemberSettingsScreenState extends State<MemberSettingsScreen> {
               ElevatedButton(
                 onPressed: _isDirty() && !_saving ? _saveSettings : null,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF275954),
+                  backgroundColor: AppColors.teal,
                 ),
                 child: _saving
                     ? const SizedBox(
@@ -706,7 +701,7 @@ class _MemberSettingsScreenState extends State<MemberSettingsScreen> {
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: Color(0xFF0f172a),
+              color: AppColors.navy,
             ),
           ),
           const SizedBox(height: 16),
@@ -755,7 +750,7 @@ class _MemberSettingsScreenState extends State<MemberSettingsScreen> {
             style: const TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.bold,
-              color: Color(0xFF0f172a),
+              color: AppColors.navy,
             ),
           ),
         ],
