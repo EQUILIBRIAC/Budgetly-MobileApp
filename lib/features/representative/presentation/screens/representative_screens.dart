@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 
 import 'package:budgetly_app/features/auth/presentation/providers/auth_providers.dart';
 import 'package:budgetly_app/app/router/app_routes.dart';
+import 'package:budgetly_app/core/network/api_failure.dart';
 import 'package:budgetly_app/features/representative/presentation/providers/representative_provider.dart';
 
 class RepresentativeDashboardLayout extends ConsumerWidget {
@@ -523,7 +524,10 @@ class _AsyncRepView extends StatelessWidget {
             children: [
               const Icon(Icons.error_outline, color: Colors.red),
               const SizedBox(height: 8),
-              Text(error.toString(), textAlign: TextAlign.center),
+              Text(
+                ApiFailure.wrap(error).messageEs,
+                textAlign: TextAlign.center,
+              ),
               const SizedBox(height: 8),
               ElevatedButton(onPressed: onRetry, child: const Text('Reintentar')),
             ],
