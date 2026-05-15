@@ -1,3 +1,5 @@
+import 'package:budgetly_app/core/utils/api_value_parsers.dart';
+
 class UserSettings {
   final String id;
   final String userId;
@@ -18,18 +20,23 @@ class UserSettings {
   });
 
   factory UserSettings.fromJson(Map<String, dynamic> json) {
+    DateTime parseDt(dynamic v) {
+      if (v == null) return DateTime.now();
+      try {
+        return DateTime.parse(v.toString());
+      } catch (_) {
+        return DateTime.now();
+      }
+    }
+
     return UserSettings(
       id: json['id']?.toString() ?? '',
       userId: json['userId']?.toString() ?? '',
-      language: json['language'] ?? 'en',
-      darkMode: json['darkMode'] ?? false,
-      notificationEnabled: json['notificationEnabled'] ?? true,
-      createdAt: json['createdAt'] != null
-          ? DateTime.parse(json['createdAt'].toString())
-          : DateTime.now(),
-      updatedAt: json['updatedAt'] != null
-          ? DateTime.parse(json['updatedAt'].toString())
-          : DateTime.now(),
+      language: normalizeLanguageCode(json['language'], 'es'),
+      darkMode: parseApiBool(json['darkMode'], false),
+      notificationEnabled: parseApiBool(json['notificationEnabled'], true),
+      createdAt: parseDt(json['createdAt']),
+      updatedAt: parseDt(json['updatedAt']),
     );
   }
 

@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import '../../../../core/config/api_config.dart';
 import '../../../../core/network/api_failure.dart';
 import '../../../../core/network/http_service.dart';
+import '../../../../core/utils/api_value_parsers.dart';
 import '../../../../domain/entities/user.dart';
 
 class AuthRemoteDataSource {
@@ -78,7 +79,15 @@ class AuthRemoteDataSource {
       _http.setToken(token);
 
       final userId = _toString(response['id']) ?? '';
-      final responseEmail = _toString(response['email']) ?? normalizedEmail;
+
+      final profile = await _http.get('/api/v1/user/user/$userId');
+
+      final fromProfileEmail = normalizeApiEmail(profile['email']);
+      final fromSignInEmail = normalizeApiEmail(response['email']);
+      final responseEmail = fromProfileEmail.isNotEmpty
+          ? fromProfileEmail
+          : (fromSignInEmail.isNotEmpty ? fromSignInEmail : normalizedEmail);
+
       final responseRole = (_toString(response['role']) ??
               decodeRoleFromToken(token) ??
               'representative')
@@ -86,8 +95,6 @@ class AuthRemoteDataSource {
       final authIsNewUser = response['isNewUser'] as bool? ?? false;
       final authHouseholdId = _toString(response['householdId']);
       final authPlan = _toString(response['plan']);
-
-      final profile = await _http.get('/api/v1/user/user/$userId');
 
       final onboardingPending = authIsNewUser ||
           profile['isNewUser']?.toString().toLowerCase() == 'true';

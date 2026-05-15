@@ -85,7 +85,7 @@ abstract class ApiFailure implements Exception {
       );
     }
     return ApiFailure.generic(
-      serverMsg.isNotEmpty ? serverMsg : 'Error de red (${statusCode}).',
+      serverMsg.isNotEmpty ? serverMsg : 'Error de red ($statusCode).',
     );
   }
 

@@ -11,6 +11,21 @@ abstract final class ApiPaths {
   static String billsByHousehold(String householdId) =>
       '/api/v1/bills/byhousehold/$householdId';
 
+  static const String billsRoot = '/api/v1/bills';
+
+  static String billsUpdate(String id) => '/api/v1/bills/byid/$id';
+
+  static String billsDelete(String id) => '/api/v1/bills/$id';
+
+  static String houseHoldPut(String id) => '/api/v1/house_hold/$id';
+
+  static String contributionUpdate(String id) => '/api/v1/contribution/byid/$id';
+
+  static String contributionDelete(String id) => '/api/v1/contribution/$id';
+
+  static String userDeleteByEmail(String email) =>
+      '/api/v1/user/byemail/${Uri.encodeComponent(email)}';
+
   static String householdMembersByHousehold(String householdId) =>
       '/api/v1/household_member/household/$householdId';
 

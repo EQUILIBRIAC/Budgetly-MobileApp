@@ -1,5 +1,5 @@
 import 'package:budgetly_app/core/network/api_failure.dart';
-import '../../../../domain/entities/user.dart';
+import 'package:budgetly_app/domain/entities/user.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../datasources/auth_local_data_source.dart';
 import '../datasources/auth_remote_data_source.dart';
@@ -21,14 +21,7 @@ class AuthRepositoryImpl implements AuthRepository {
     if (token == null || token.isEmpty || userJson == null) {
       return null;
     }
-    return User(
-      id: userJson['id']?.toString() ?? '',
-      email: userJson['email']?.toString() ?? '',
-      role: userJson['role']?.toString().toLowerCase() ?? 'member',
-      householdId: userJson['householdId']?.toString() ?? '',
-      isNewUser: userJson['isNewUser'] == true,
-      plan: userJson['plan']?.toString() ?? 'FREE',
-    );
+    return User.fromJson(Map<String, dynamic>.from(userJson));
   }
 
   @override

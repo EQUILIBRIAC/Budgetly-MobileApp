@@ -12,11 +12,16 @@ import '../../features/member/presentation/screens/member_household_status_scree
 import '../../features/member/presentation/screens/member_search_household_screen.dart';
 import '../../features/member/presentation/screens/member_settings_screen.dart';
 import '../../features/representative/presentation/screens/representative_screens.dart';
+import '../../features/representative/presentation/screens/representative_settings_screen.dart';
 import 'app_routes.dart';
 import 'route_guards.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
-  final auth = ref.watch(authControllerProvider);
+  // Importante: no usar `ref.watch` aquí. Cada `notifyListeners()` del
+  // AuthController invalidaría este Provider, recrearía GoRouter y puede
+  // provocar el assert `_dependents.isEmpty` al desmontar el árbol heredado.
+  // `refreshListenable` ya vuelve a evaluar `redirect` cuando cambia el auth.
+  final auth = ref.read(authControllerProvider);
 
   return GoRouter(
     initialLocation: AppRoutes.splash,

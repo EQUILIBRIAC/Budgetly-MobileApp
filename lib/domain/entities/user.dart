@@ -1,3 +1,5 @@
+import 'package:budgetly_app/core/utils/api_value_parsers.dart';
+
 class User {
   final String id;
   final String email;
@@ -17,12 +19,13 @@ class User {
 
   factory User.fromJson(Map<String, dynamic> json) {
     return User(
-      id: json['id'] as String? ?? '',
-      email: json['email'] as String? ?? '',
-      role: json['role'] as String? ?? 'representative',
-      householdId: json['householdId'] as String? ?? '',
-      isNewUser: json['isNewUser'] as bool? ?? false,
-      plan: json['plan'] as String? ?? 'FREE',
+      id: json['id']?.toString() ?? '',
+      email: normalizeApiEmail(json['email']),
+      role: json['role']?.toString().toLowerCase() ?? 'representative',
+      householdId:
+          json['householdId']?.toString() ?? json['houseHoldId']?.toString() ?? '',
+      isNewUser: parseApiBool(json['isNewUser'], false),
+      plan: json['plan']?.toString() ?? 'FREE',
     );
   }
 

@@ -3,6 +3,8 @@ class Household {
   final String name;
   final String description;
   final String currency;
+  /// Miembros según el API (listado o detalle).
+  final int memberCount;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -11,6 +13,7 @@ class Household {
     required this.name,
     required this.description,
     required this.currency,
+    this.memberCount = 0,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -21,11 +24,17 @@ class Household {
       name: json['name'] ?? 'Mi Hogar',
       description: json['description'] ?? '',
       currency: _currencyFromJson(json['currency']),
+      memberCount: _parseCount(json['memberCount']),
       createdAt:
           DateTime.parse(json['createdAt'] ?? DateTime.now().toIso8601String()),
       updatedAt:
           DateTime.parse(json['updatedAt'] ?? DateTime.now().toIso8601String()),
     );
+  }
+
+  static int _parseCount(dynamic v) {
+    if (v is int) return v;
+    return int.tryParse(v?.toString() ?? '') ?? 0;
   }
 
   static String _currencyFromJson(dynamic v) {
@@ -44,6 +53,7 @@ class Household {
         'name': name,
         'description': description,
         'currency': currency == 'USD' ? 2 : 1,
+        'memberCount': memberCount,
         'createdAt': createdAt.toIso8601String(),
         'updatedAt': updatedAt.toIso8601String(),
       };

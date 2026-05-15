@@ -78,6 +78,18 @@ class HttpService {
     );
   }
 
+  Future<http.Response> _deleteRaw(String endpoint) async {
+    final url = Uri.parse('$baseUrl$endpoint');
+    final headers = {
+      ...ApiConfig.defaultHeaders,
+      if (_token != null) 'Authorization': 'Bearer $_token',
+    };
+
+    return _withRetry(
+      () => http.delete(url, headers: headers).timeout(ApiConfig.connectionTimeout),
+    );
+  }
+
   void _debugLog(String verb, String endpoint, http.Response response) {
     if (!kDebugMode) return;
     final raw = response.body;
@@ -192,6 +204,32 @@ class HttpService {
       );
     } catch (_) {
       throw NetworkException('Fallo inesperado en GET $endpoint');
+    }
+  }
+
+  /// DELETE: admite 204 sin cuerpo JSON.
+  Future<Map<String, dynamic>> delete(String endpoint) async {
+    try {
+      final response = await _deleteRaw(endpoint);
+      _debugLog('DELETE', endpoint, response);
+      final code = response.statusCode;
+      if (code >= 200 && code < 300) {
+        final raw = response.body.trim();
+        if (raw.isEmpty) return <String, dynamic>{};
+        return _decodeJsonMap(response.body, verb: 'DELETE $endpoint');
+      }
+      _onUnauthorized(code);
+      throw _toNetworkException(code, response.body);
+    } on NetworkException {
+      rethrow;
+    } on http.ClientException catch (e) {
+      throw _connectionException(e.message);
+    } on TimeoutException {
+      throw NetworkException(
+        'Tiempo de espera al contactar ${EnvConfig.apiBaseUrl}',
+      );
+    } catch (_) {
+      throw NetworkException('Fallo inesperado en DELETE $endpoint');
     }
   }
 
