@@ -1,3 +1,5 @@
+import 'package:budgetly_app/core/utils/api_value_parsers.dart';
+
 class Household {
   final String id;
   final String name;
@@ -57,6 +59,223 @@ class Household {
         'createdAt': createdAt.toIso8601String(),
         'updatedAt': updatedAt.toIso8601String(),
       };
+}
+
+/// Detalle de miembro (`GET .../household/{id}/detailed`); no incluye income.
+class HouseholdMemberDetailed {
+  final String householdMemberId;
+  final String userId;
+  final String? name;
+  final String? email;
+  final String? role;
+  final String? status;
+  final double totalContributed;
+  final bool isRepresentative;
+  final DateTime? joinedAt;
+
+  HouseholdMemberDetailed({
+    required this.householdMemberId,
+    required this.userId,
+    this.name,
+    this.email,
+    this.role,
+    this.status,
+    this.totalContributed = 0,
+    this.isRepresentative = false,
+    this.joinedAt,
+  });
+
+  factory HouseholdMemberDetailed.fromJson(Map<String, dynamic> json) {
+    return HouseholdMemberDetailed(
+      householdMemberId: json['householdMemberId']?.toString() ??
+          json['id']?.toString() ??
+          '',
+      userId: json['userId']?.toString() ?? '',
+      name: _readPersonName(json),
+      email: normalizeApiEmail(json['email']).isEmpty
+          ? null
+          : normalizeApiEmail(json['email']),
+      role: json['role']?.toString(),
+      status: json['status']?.toString(),
+      totalContributed:
+          HouseholdMember._parseDouble(json['totalContributed']) ?? 0,
+      isRepresentative: json['isRepresentative'] == true,
+      joinedAt: json['joinedAt'] != null
+          ? DateTime.tryParse(json['joinedAt'].toString())
+          : null,
+    );
+  }
+
+  static String? _readPersonName(Map<String, dynamic> json) {
+    return extractPersonNameFromMap(json);
+  }
+}
+
+/// Fila unificada para la pantalla de ingresos (miembros + detalle + income).
+class MemberIncomeEntry {
+  final String membershipId;
+  final String userId;
+  final String displayName;
+  final String? email;
+  final String? role;
+  final String? status;
+  final double income;
+  final bool isRepresentative;
+
+  const MemberIncomeEntry({
+    required this.membershipId,
+    required this.userId,
+    required this.displayName,
+    this.email,
+    this.role,
+    this.status,
+    required this.income,
+    this.isRepresentative = false,
+  });
+
+  MemberIncomeEntry copyWith({double? income}) => MemberIncomeEntry(
+        membershipId: membershipId,
+        userId: userId,
+        displayName: displayName,
+        email: email,
+        role: role,
+        status: status,
+        income: income ?? this.income,
+        isRepresentative: isRepresentative,
+      );
+
+  static List<MemberIncomeEntry> merge({
+    required List<HouseholdMember> members,
+    required List<HouseholdMemberDetailed> detailed,
+    Map<String, String> userNamesById = const {},
+    Map<String, String> userEmailsById = const {},
+    Map<String, String> localNamesByUserId = const {},
+    Map<String, String> signupNamesByEmail = const {},
+  }) {
+    final membersByUserId = {
+      for (final m in members)
+        if (m.userId.isNotEmpty) m.userId: m,
+    };
+
+    if (detailed.isNotEmpty) {
+      final entries = detailed
+          .where((d) => d.userId.isNotEmpty)
+          .map((d) {
+            final m = membersByUserId[d.userId];
+            return MemberIncomeEntry(
+              membershipId: d.householdMemberId.isNotEmpty
+                  ? d.householdMemberId
+                  : (m?.id ?? ''),
+              userId: d.userId,
+              displayName: _resolveDisplayName(
+                detailed: d,
+                member: m,
+                profileName: userNamesById[d.userId],
+                localName: localNamesByUserId[d.userId],
+                signupName: _signupNameForUser(
+                  detailedEmail: d.email,
+                  userId: d.userId,
+                  userEmailsById: userEmailsById,
+                  signupNamesByEmail: signupNamesByEmail,
+                ),
+              ),
+              email: _resolveEmail(
+                detailedEmail: d.email,
+                userId: d.userId,
+                userEmailsById: userEmailsById,
+              ),
+              role: d.role ?? m?.role,
+              status: d.status,
+              income: m?.income ?? 0,
+              isRepresentative: d.isRepresentative,
+            );
+          })
+          .toList();
+      entries.sort((a, b) => a.displayName.compareTo(b.displayName));
+      return entries;
+    }
+
+    final entries = members.map((m) {
+      return MemberIncomeEntry(
+        membershipId: m.id,
+        userId: m.userId,
+        displayName: _resolveDisplayName(
+          member: m,
+          profileName: userNamesById[m.userId],
+          localName: localNamesByUserId[m.userId],
+          signupName: _signupNameForUser(
+            userId: m.userId,
+            userEmailsById: userEmailsById,
+            signupNamesByEmail: signupNamesByEmail,
+          ),
+        ),
+        email: _resolveEmail(
+          userId: m.userId,
+          userEmailsById: userEmailsById,
+        ),
+        role: m.role,
+        status: null,
+        income: m.income ?? 0,
+        isRepresentative: false,
+      );
+    }).toList();
+
+    entries.sort((a, b) => a.displayName.compareTo(b.displayName));
+    return entries;
+  }
+
+  static String _resolveDisplayName({
+    HouseholdMemberDetailed? detailed,
+    HouseholdMember? member,
+    String? profileName,
+    String? localName,
+    String? signupName,
+  }) {
+    for (final candidate in [
+      detailed?.name,
+      profileName,
+      localName,
+      signupName,
+      member?.name,
+    ]) {
+      final trimmed = candidate?.trim();
+      if (trimmed != null && trimmed.isNotEmpty) return trimmed;
+    }
+
+    final email = normalizeApiEmail(detailed?.email);
+    if (email.contains('@')) {
+      final localPart = email.split('@').first.trim();
+      if (localPart.isNotEmpty) return localPart;
+    }
+
+    return '';
+  }
+
+  static String? _resolveEmail({
+    String? detailedEmail,
+    required String userId,
+    Map<String, String> userEmailsById = const {},
+  }) {
+    final fromDetailed = normalizeApiEmail(detailedEmail);
+    if (fromDetailed.isNotEmpty) return fromDetailed;
+    final fromDirectory = normalizeApiEmail(userEmailsById[userId]);
+    return fromDirectory.isEmpty ? null : fromDirectory;
+  }
+
+  static String? _signupNameForUser({
+    String? detailedEmail,
+    required String userId,
+    Map<String, String> userEmailsById = const {},
+    Map<String, String> signupNamesByEmail = const {},
+  }) {
+    final email = _resolveEmail(
+      detailedEmail: detailedEmail,
+      userId: userId,
+      userEmailsById: userEmailsById,
+    );
+    if (email == null || email.isEmpty) return null;
+    return signupNamesByEmail[email.trim().toLowerCase()];
+  }
 }
 
 class HouseholdMember {

@@ -15,12 +15,16 @@ String representativeScreenTitle(String route) {
       return 'Hogares';
     case AppRoutes.repMembers:
       return 'Miembros';
+    case AppRoutes.repMemberIncomes:
+      return 'Ingresos de miembros';
     case AppRoutes.repBills:
       return 'Gastos del hogar';
     case AppRoutes.repContributions:
       return 'Aportes';
     case AppRoutes.repSettings:
       return 'Configuración';
+    case AppRoutes.repHouseholdIncomeSettings:
+      return 'Reparto por ingreso';
     default:
       return 'Budgetly';
   }
@@ -213,6 +217,12 @@ class RepresentativeDashboardLayout extends ConsumerWidget {
                     color: AppColors.labelGray,
                   ),
                 ),
+              ),
+              _DrawerTile(
+                icon: Icons.payments_outlined,
+                label: 'Ingresos de miembros',
+                selected: currentRoute == AppRoutes.repMemberIncomes,
+                onTap: () => go(AppRoutes.repMemberIncomes),
               ),
               _DrawerTile(
                 icon: Icons.settings_outlined,

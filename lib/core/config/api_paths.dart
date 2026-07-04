@@ -26,13 +26,49 @@ abstract final class ApiPaths {
   static String userDeleteByEmail(String email) =>
       '/api/v1/user/byemail/${Uri.encodeComponent(email)}';
 
+  static String userById(String id) => '/api/v1/user/user/$id';
+
+  static String userUpdateByEmail(String email) =>
+      '/api/v1/user/byemail/${Uri.encodeComponent(email)}';
+
+  static const String userList = '/api/v1/user';
+
   static String householdMembersByHousehold(String householdId) =>
       '/api/v1/household_member/household/$householdId';
+
+  static String householdMembersDetailed(String householdId) =>
+      '/api/v1/household_member/household/$householdId/detailed';
+
+  static String userIncomeByUserId(int userId) =>
+      '/api/v1/user-income/byUserId/$userId';
+
+  static String userIncomeById(String id) => '/api/v1/user-income/byId/$id';
+
+  static const String userIncomeRoot = '/api/v1/user-income';
+
+  static String incomeAllocationByHousehold(String householdId) =>
+      '/api/v1/income_allocation/byHousehold/$householdId';
+
+  static const String incomeAllocationRoot = '/api/v1/income_allocation';
+
+  static String incomeAllocationById(String id) =>
+      '/api/v1/income_allocation/byId/$id';
 
   static String contributionsByHousehold(String householdId) =>
       '/api/v1/contribution/byhouseholdid/$householdId';
 
+  static String contributionByBillId(String billId) =>
+      '/api/v1/contribution/bybillid/$billId';
+
+  static String contributionById(String id) => '/api/v1/contribution/$id';
+
   static const String memberContributionRoot = '/api/v1/member_contribution';
+
+  static String memberContributionsByContribution(String contributionId) =>
+      '/api/v1/member_contribution/bycontributionid/$contributionId';
+
+  static String memberContributionMarkPaid(String id) =>
+      '/api/v1/member_contribution/byid/$id/mark-paid';
 
   static String memberContributionsByMember(String memberId) =>
       '/api/v1/member_contribution/bymemberid/$memberId';
@@ -71,6 +107,28 @@ abstract final class ApiJson {
     final d = response['data'];
     if (d is List) {
       return d.whereType<Map<String, dynamic>>().toList();
+    }
+    return const [];
+  }
+
+  /// Listas en `data`, raíz JSON array (vía HttpService) o claves habituales del API.
+  static List<Map<String, dynamic>> listDataFlexible(
+    Map<String, dynamic> response,
+  ) {
+    final fromData = listData(response);
+    if (fromData.isNotEmpty) return fromData;
+
+    for (final key in const [
+      'value',
+      'members',
+      'householdMembers',
+      'items',
+      'results',
+    ]) {
+      final v = response[key];
+      if (v is List) {
+        return v.whereType<Map<String, dynamic>>().toList();
+      }
     }
     return const [];
   }

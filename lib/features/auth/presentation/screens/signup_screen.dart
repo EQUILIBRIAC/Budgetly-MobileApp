@@ -1,4 +1,6 @@
-﻿import 'package:flutter/material.dart';
+﻿import 'dart:convert';
+
+import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:budgetly_app/app/router/app_routes.dart';
 import 'package:budgetly_app/app/l10n/app_strings.dart';
@@ -7,6 +9,7 @@ import 'package:budgetly_app/core/config/env_config.dart';
 import 'package:budgetly_app/app/theme/app_colors.dart';
 import 'package:budgetly_app/core/network/api_failure.dart';
 import 'package:budgetly_app/core/network/http_service.dart';
+import 'package:budgetly_app/core/storage/member_display_name_store.dart';
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -120,7 +123,7 @@ class _SignupScreenState extends State<SignupScreen> {
       final planCode = _getPlanCode(_selectedPlan);
       final householdTrimmed = _householdIdController.text.trim();
 
-      final _ = await HttpService(baseUrl: EnvConfig.apiBaseUrl).post(
+      await HttpService(baseUrl: EnvConfig.apiBaseUrl).post(
         ApiConfig.pathSignUp,
         body: {
           'email': normalizedEmail,
@@ -132,6 +135,27 @@ class _SignupScreenState extends State<SignupScreen> {
             'householdId': householdTrimmed,
         },
       );
+
+      final signupName = _nameController.text.trim();
+      await MemberDisplayNameStore.saveForEmail(normalizedEmail, signupName);
+
+      try {
+        final signInResponse = await HttpService(baseUrl: EnvConfig.apiBaseUrl)
+            .postReturningResponse(
+          ApiConfig.pathSignIn,
+          body: {
+            'email': normalizedEmail,
+            'password': normalizedPassword,
+          },
+        );
+        if (signInResponse.statusCode == 200 || signInResponse.statusCode == 201) {
+          final decoded = jsonDecode(signInResponse.body) as Map<String, dynamic>;
+          final userId = decoded['id']?.toString() ?? '';
+          if (userId.isNotEmpty) {
+            await MemberDisplayNameStore.saveForUserId(userId, signupName);
+          }
+        }
+      } catch (_) {}
 
       if (mounted) {
         setState(() {

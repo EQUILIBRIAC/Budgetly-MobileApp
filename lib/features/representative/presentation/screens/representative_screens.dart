@@ -10,6 +10,11 @@ import 'package:budgetly_app/app/theme/app_colors.dart';
 import 'package:budgetly_app/core/config/env_config.dart';
 import 'package:budgetly_app/core/network/api_failure.dart';
 import 'package:budgetly_app/domain/entities/household_entities.dart';
+import 'package:budgetly_app/domain/entities/income_split_entities.dart';
+import 'package:budgetly_app/features/representative/presentation/providers/bill_payments_provider.dart';
+import 'package:budgetly_app/features/representative/presentation/providers/contribution_overview_provider.dart';
+import 'package:budgetly_app/features/representative/presentation/widgets/payments/payment_progress_bar.dart';
+import 'package:budgetly_app/features/representative/presentation/providers/household_members_provider.dart';
 import 'package:budgetly_app/features/representative/presentation/providers/representative_provider.dart';
 import 'package:budgetly_app/features/representative/presentation/widgets/representative_dashboard_layout.dart';
 
@@ -21,6 +26,37 @@ Future<void> _copyToClipboard(BuildContext context, String value) async {
   await Clipboard.setData(ClipboardData(text: value));
   if (!context.mounted) return;
   _repSnack(context, 'Copiado al portapapeles');
+}
+
+Future<void> _openBillActionSheet(BuildContext context, Bill bill) async {
+  await showModalBottomSheet<void>(
+    context: context,
+    builder: (ctx) => SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(
+            leading: const Icon(Icons.payments_outlined, color: AppColors.dashGreen),
+            title: const Text('Ver pagos'),
+            subtitle: const Text('Estado y marcar aportes como pagados'),
+            onTap: () {
+              Navigator.pop(ctx);
+              context.push(AppRoutes.repBillPayments(bill.id), extra: bill);
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.pie_chart_outline, color: AppColors.dashBlue),
+            title: const Text('Ver desglose'),
+            subtitle: const Text('Reparto IncomeBased por miembro'),
+            onTap: () {
+              Navigator.pop(ctx);
+              context.push(AppRoutes.repBillBreakdown(bill.id), extra: bill);
+            },
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 RepresentativeData? _requireLoadedHousehold(WidgetRef ref, BuildContext context) {
@@ -38,17 +74,6 @@ RepresentativeData? _requireLoadedHousehold(WidgetRef ref, BuildContext context)
 
 int? _parsedUserNumericId(AuthController auth) =>
     int.tryParse(auth.currentUser?.id.trim() ?? '');
-
-String _memberRoleLabel(String? apiRole) {
-  switch ((apiRole ?? '').toLowerCase()) {
-    case 'representative':
-      return 'Representante';
-    case 'member':
-      return 'Miembro';
-    default:
-      return apiRole?.isNotEmpty == true ? apiRole! : 'Miembro';
-  }
-}
 
 Future<void> _openCreateBillSheet(
   BuildContext context,
@@ -205,6 +230,7 @@ Future<void> _openAddMemberSheet(
   RepresentativeData data,
 ) async {
   final userIdCtl = TextEditingController();
+  final nameCtl = TextEditingController();
   final incomeCtl = TextEditingController();
   String roleKey = 'member';
   final hostContext = context;
@@ -257,6 +283,15 @@ Future<void> _openAddMemberSheet(
                   ),
                   const SizedBox(height: 16),
                   TextField(
+                    controller: nameCtl,
+                    textCapitalization: TextCapitalization.words,
+                    decoration: const InputDecoration(
+                      labelText: 'Nombre (opcional)',
+                      hintText: 'Ej. Juan',
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
                     controller: userIdCtl,
                     keyboardType: TextInputType.number,
                     decoration: const InputDecoration(
@@ -302,15 +337,26 @@ Future<void> _openAddMemberSheet(
                     ),
                     onPressed: () async {
                       try {
+                        final userId = userIdCtl.text.trim();
                         await ref.read(representativeActionsProvider).createMember(
                               householdId: data.activeHouseholdId,
-                              userId: userIdCtl.text.trim(),
+                              userId: userId,
                               role: roleKey,
                               income: double.tryParse(incomeCtl.text.trim()),
                             );
+                        final displayName = nameCtl.text.trim();
+                        if (displayName.isNotEmpty) {
+                          await ref
+                              .read(representativeActionsProvider)
+                              .saveMemberDisplayName(
+                                userId: userId,
+                                name: displayName,
+                              );
+                        }
                         if (!ctx.mounted) return;
                         Navigator.pop(ctx);
                         scheduleRepresentativeProviderRefresh(ref);
+                        ref.invalidate(householdMembersProvider);
                         if (hostContext.mounted) {
                           _repSnack(hostContext, 'Miembro vinculado al hogar.');
                         }
@@ -799,6 +845,7 @@ Future<void> _confirmDeleteMember(
     await ref.read(representativeActionsProvider).deleteHouseholdMember(membershipId);
     if (!context.mounted) return;
     scheduleRepresentativeProviderRefresh(ref);
+    ref.invalidate(householdMembersProvider);
     _repSnack(context, 'Miembro quitado del hogar.');
   } catch (e) {
     if (!context.mounted) return;
@@ -1001,6 +1048,13 @@ class RepresentativeDashboardScreen extends ConsumerWidget {
                 crossAxisSpacing: 12,
                 childAspectRatio: 1.02,
                 children: [
+                  _WebActionTile(
+                    color: AppColors.dashGreen,
+                    icon: Icons.payments_outlined,
+                    title: 'Ingresos',
+                    subtitle: 'Salario de miembros',
+                    onTap: () => context.go(AppRoutes.repMemberIncomes),
+                  ),
                   _WebActionTile(
                     color: AppColors.dashBlue,
                     icon: Icons.group_outlined,
@@ -1290,7 +1344,7 @@ class RepresentativeMembersScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(representativeProvider);
+    final membersState = ref.watch(householdMembersProvider);
     return RepresentativeDashboardLayout(
       currentRoute: AppRoutes.repMembers,
       floatingActionButton: FloatingActionButton.extended(
@@ -1304,10 +1358,37 @@ class RepresentativeMembersScreen extends ConsumerWidget {
         icon: const Icon(Icons.person_add_alt_1),
         label: const Text('Agregar miembro'),
       ),
-      child: _AsyncRepView(
-        state: state,
-        onRetry: () => scheduleRepresentativeProviderRefresh(ref),
-        builder: (data) {
+      child: membersState.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (error, _) => Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.error_outline, color: Colors.red.shade700, size: 48),
+                const SizedBox(height: 16),
+                Text(
+                  ApiFailure.wrap(error).messageEs,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: AppColors.textGray, height: 1.45),
+                ),
+                const SizedBox(height: 20),
+                FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.dashGreen,
+                    foregroundColor: AppColors.white,
+                  ),
+                  onPressed: () => ref.invalidate(householdMembersProvider),
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Reintentar'),
+                ),
+              ],
+            ),
+          ),
+        ),
+        data: (data) {
+          final sym = data.currency == 'USD' ? '\$' : 'S/';
           if (data.members.isEmpty) {
             return _RepEmpty(
               message: 'Aquí aparecerán quienes comparten tus gastos.',
@@ -1329,75 +1410,133 @@ class RepresentativeMembersScreen extends ConsumerWidget {
               ),
             );
           }
-          return ListView.builder(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 88),
-            itemCount: data.members.length,
-            itemBuilder: (context, index) {
-              final member = data.members[index];
-              return Card(
-                elevation: 0,
-                color: AppColors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  side: const BorderSide(color: AppColors.borderGray),
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                child: OutlinedButton.icon(
+                  onPressed: () => context.go(AppRoutes.repMemberIncomes),
+                  icon: const Icon(Icons.payments_outlined),
+                  label: const Text('Registrar ingresos mensuales'),
                 ),
-                child: ListTile(
-                  isThreeLine: true,
-                  leading: const Icon(Icons.person_outline),
-                  title: Text(member.name ?? 'Sin nombre'),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _memberRoleLabel(member.role),
-                        style: const TextStyle(fontSize: 13),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'ID usuario: ${member.userId}',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: AppColors.labelGray,
+              ),
+              Expanded(
+                child: RefreshIndicator(
+                  onRefresh: () async {
+                    ref.invalidate(householdMembersProvider);
+                    await ref.read(householdMembersProvider.future);
+                  },
+                  child: ListView.builder(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 88),
+                    itemCount: data.members.length,
+                    itemBuilder: (context, index) {
+                      final member = data.members[index];
+                      return Card(
+                        elevation: 0,
+                        color: AppColors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          side: const BorderSide(color: AppColors.borderGray),
                         ),
-                      ),
-                    ],
-                  ),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        tooltip: 'Copiar ID de usuario',
-                        icon: const Icon(Icons.copy_rounded, size: 20),
-                        color: AppColors.dashBlue,
-                        onPressed: () =>
-                            _copyToClipboard(context, member.userId),
-                      ),
-                      if (member.id.isNotEmpty)
-                        PopupMenuButton<String>(
-                          onSelected: (v) async {
-                            if (v == 'del') {
-                              await _confirmDeleteMember(
-                                context,
-                                ref,
-                                member.id,
-                              );
-                            }
-                          },
-                          itemBuilder: (ctx) => const [
-                            PopupMenuItem(
-                              value: 'del',
-                              child: Text(
-                                'Quitar del hogar',
-                                style: TextStyle(color: AppColors.dangerRed),
+                        child: ListTile(
+                          isThreeLine: true,
+                          leading: CircleAvatar(
+                            backgroundColor: AppColors.dashBadgeGray,
+                            child: Text(
+                              member.displayName.isNotEmpty &&
+                                      member.displayName != 'Sin nombre'
+                                  ? member.displayName
+                                      .substring(0, 1)
+                                      .toUpperCase()
+                                  : '?',
+                              style: const TextStyle(
+                                color: AppColors.navy,
+                                fontWeight: FontWeight.w700,
                               ),
                             ),
-                          ],
+                          ),
+                          title: Text(
+                            member.displayName,
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                member.roleLabel,
+                                style: const TextStyle(fontSize: 13),
+                              ),
+                              if (member.email?.isNotEmpty == true &&
+                                  member.displayName != member.email) ...[
+                                const SizedBox(height: 2),
+                                Text(
+                                  member.email!,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.textGray,
+                                  ),
+                                ),
+                              ],
+                              const SizedBox(height: 4),
+                              Text(
+                                member.income > 0
+                                    ? 'Ingreso mensual: $sym${member.income.toStringAsFixed(2)}'
+                                    : 'Ingreso mensual: sin registrar',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: member.income > 0
+                                      ? AppColors.dashGreen
+                                      : AppColors.labelGray,
+                                ),
+                              ),
+                            ],
+                          ),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (member.email?.isNotEmpty == true)
+                                IconButton(
+                                  tooltip: 'Copiar correo',
+                                  icon: const Icon(Icons.copy_rounded, size: 20),
+                                  color: AppColors.dashBlue,
+                                  onPressed: () => _copyToClipboard(
+                                    context,
+                                    member.email!,
+                                  ),
+                                ),
+                              if (member.householdMemberId.isNotEmpty)
+                                PopupMenuButton<String>(
+                                  onSelected: (v) async {
+                                    if (v == 'del') {
+                                      await _confirmDeleteMember(
+                                        context,
+                                        ref,
+                                        member.householdMemberId,
+                                      );
+                                    }
+                                  },
+                                  itemBuilder: (ctx) => const [
+                                    PopupMenuItem(
+                                      value: 'del',
+                                      child: Text(
+                                        'Quitar del hogar',
+                                        style:
+                                            TextStyle(color: AppColors.dangerRed),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                            ],
+                          ),
                         ),
-                    ],
+                      );
+                    },
                   ),
                 ),
-              );
-            },
+              ),
+            ],
           );
         },
       ),
@@ -1450,6 +1589,8 @@ class RepresentativeBillsScreen extends ConsumerWidget {
             );
           }
           final formatter = DateFormat('yyyy-MM-dd');
+          final progressMap =
+              ref.watch(billsPaymentProgressProvider).valueOrNull ?? {};
           return ListView.builder(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 88),
             itemCount: data.bills.length,
@@ -1458,12 +1599,17 @@ class RepresentativeBillsScreen extends ConsumerWidget {
               final dueDate = bill.paymentDay == null
                   ? 'Sin fecha'
                   : formatter.format(bill.paymentDay!);
+              final progress = progressMap[bill.id];
               return Card(
                 elevation: 0,
                 color: AppColors.white,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
-                  side: const BorderSide(color: AppColors.borderGray),
+                  side: BorderSide(
+                    color: progress?.isFullyPaid == true
+                        ? AppColors.dashGreen.withValues(alpha: 0.4)
+                        : AppColors.borderGray,
+                  ),
                 ),
                 child: ListTile(
                   leading: CircleAvatar(
@@ -1471,10 +1617,36 @@ class RepresentativeBillsScreen extends ConsumerWidget {
                     child: const Icon(Icons.receipt_long_outlined, color: AppColors.dashOrange),
                   ),
                   title: Text(bill.description),
-                  subtitle: Text(
-                    'Vence: $dueDate'
-                    '${bill.category != null && bill.category!.isNotEmpty ? ' · ${bill.category}' : ''}',
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Vence: $dueDate'
+                        '${bill.category != null && bill.category!.isNotEmpty ? ' · ${bill.category}' : ''}',
+                      ),
+                      if (progress != null && progress.totalMembersCount > 0) ...[
+                        const SizedBox(height: 6),
+                        Text(
+                          '${progress.paidMembersCount}/${progress.totalMembersCount} pagados',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: progress.isFullyPaid
+                                ? AppColors.dashGreen
+                                : AppColors.dashOrange,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        PaymentProgressBar(
+                          progressPercent: progress.progressPercent,
+                          height: 4,
+                          compact: true,
+                        ),
+                      ],
+                    ],
                   ),
+                  isThreeLine: progress != null && progress.totalMembersCount > 0,
+                  onTap: () => _openBillActionSheet(context, bill),
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -1488,13 +1660,31 @@ class RepresentativeBillsScreen extends ConsumerWidget {
                       PopupMenuButton<String>(
                         onSelected: (v) async {
                           if (!context.mounted) return;
-                          if (v == 'edit') {
+                          if (v == 'payments') {
+                            context.push(
+                              AppRoutes.repBillPayments(bill.id),
+                              extra: bill,
+                            );
+                          } else if (v == 'breakdown') {
+                            context.push(
+                              AppRoutes.repBillBreakdown(bill.id),
+                              extra: bill,
+                            );
+                          } else if (v == 'edit') {
                             await _openEditBillSheet(context, ref, data, bill);
                           } else if (v == 'del' && bill.id.isNotEmpty) {
                             await _confirmDeleteBill(context, ref, bill.id);
                           }
                         },
                         itemBuilder: (ctx) => [
+                          const PopupMenuItem(
+                            value: 'payments',
+                            child: Text('Ver pagos'),
+                          ),
+                          const PopupMenuItem(
+                            value: 'breakdown',
+                            child: Text('Ver desglose'),
+                          ),
                           const PopupMenuItem(value: 'edit', child: Text('Editar')),
                           const PopupMenuItem(
                             value: 'del',
@@ -1643,66 +1833,240 @@ class RepresentativeContributionsScreen extends ConsumerWidget {
             children: [
               header,
               Expanded(
-                child: ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 88),
-                  itemCount: data.contributions.length,
-                  itemBuilder: (context, index) {
-                    final contribution = data.contributions[index];
-                    return Card(
-                      elevation: 0,
-                      color: AppColors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        side: const BorderSide(color: AppColors.borderGray),
-                      ),
-                      child: ListTile(
-                        leading: const Icon(Icons.payments_outlined),
-                        title:
-                            Text(contribution.description ?? 'Sin descripción'),
-                        subtitle: Text(
-                          'Límite: ${DateFormat('d MMM yyyy', EnvConfig.localeDefault).format(contribution.deadlineForMembers)}',
-                        ),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              tooltip: 'Copiar ID',
-                              icon: const Icon(Icons.copy_rounded, size: 20),
-                              color: AppColors.dashBlue,
-                              onPressed: () =>
-                                  _copyToClipboard(context, contribution.id),
-                            ),
-                            if (contribution.id.isNotEmpty)
-                              PopupMenuButton<String>(
-                                onSelected: (v) async {
-                                  if (v == 'del') {
-                                    await _confirmDeleteContribution(
-                                      context,
-                                      ref,
-                                      contribution.id,
-                                    );
-                                  }
-                                },
-                                itemBuilder: (ctx) => const [
-                                  PopupMenuItem(
-                                    value: 'del',
-                                    child: Text(
-                                      'Eliminar',
-                                      style: TextStyle(
-                                        color: AppColors.dangerRed,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
+                child: _ContributionsBreakdownList(
+                  currencySymbol: sym,
+                  bills: data.bills,
                 ),
               ),
             ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _ContributionsBreakdownList extends ConsumerWidget {
+  const _ContributionsBreakdownList({
+    required this.currencySymbol,
+    required this.bills,
+  });
+
+  final String currencySymbol;
+  final List<Bill> bills;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final overviewAsync = ref.watch(contributionsOverviewProvider);
+
+    return overviewAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(ApiFailure.wrap(e).messageEs, textAlign: TextAlign.center),
+              const SizedBox(height: 12),
+              FilledButton(
+                onPressed: () => ref.invalidate(contributionsOverviewProvider),
+                child: const Text('Reintentar'),
+              ),
+            ],
+          ),
+        ),
+      ),
+      data: (items) => ListView.builder(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 88),
+        itemCount: items.length,
+        itemBuilder: (context, index) {
+          final item = items[index];
+          final bill = bills.where((b) => b.id == item.billId).firstOrNull;
+          final deadline = DateFormat(
+            'd MMM yyyy',
+            EnvConfig.localeDefault,
+          ).format(item.deadlineForMembers);
+          final isIncome = item.strategy == EStrategy.incomeBased;
+
+          return Card(
+            elevation: 0,
+            margin: const EdgeInsets.only(bottom: 12),
+            color: AppColors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: const BorderSide(color: AppColors.borderGray),
+            ),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: item.billId.isNotEmpty
+                  ? () {
+                      context.push(
+                        AppRoutes.repBillBreakdown(item.billId),
+                        extra: bill,
+                      );
+                    }
+                  : null,
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        CircleAvatar(
+                          radius: 20,
+                          backgroundColor:
+                              AppColors.dashPurple.withValues(alpha: 0.12),
+                          child: const Icon(
+                            Icons.payments_outlined,
+                            color: AppColors.dashPurple,
+                            size: 20,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                item.description ?? 'Sin descripción',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.navy,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Factura: $currencySymbol${item.billAmount.toStringAsFixed(2)} · Límite: $deadline',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.textGray,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isIncome
+                                ? AppColors.dashGreen.withValues(alpha: 0.12)
+                                : AppColors.dashBadgeBlue,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            item.strategy.label,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: isIncome
+                                  ? AppColors.dashGreen
+                                  : AppColors.dashBlue,
+                            ),
+                          ),
+                        ),
+                        PopupMenuButton<String>(
+                          onSelected: (v) async {
+                            if (v == 'copy') {
+                              _copyToClipboard(context, item.contributionId);
+                            } else if (v == 'del') {
+                              await _confirmDeleteContribution(
+                                context,
+                                ref,
+                                item.contributionId,
+                              );
+                              ref.invalidate(contributionsOverviewProvider);
+                            }
+                          },
+                          itemBuilder: (ctx) => const [
+                            PopupMenuItem(
+                              value: 'copy',
+                              child: Text('Copiar ID'),
+                            ),
+                            PopupMenuItem(
+                              value: 'del',
+                              child: Text(
+                                'Eliminar',
+                                style: TextStyle(color: AppColors.dangerRed),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    if (item.memberShares.isNotEmpty) ...[
+                      const Divider(height: 20),
+                      const Text(
+                        'Desglose por miembro',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.labelGray,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      ...item.memberShares.map(
+                        (share) => Padding(
+                          padding: const EdgeInsets.only(bottom: 6),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  share.name,
+                                  style: const TextStyle(fontSize: 13),
+                                ),
+                              ),
+                              Text(
+                                '${share.percentage.toStringAsFixed(1)}%',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.textGray,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Text(
+                                '$currencySymbol${share.assignedAmount.toStringAsFixed(2)}',
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.dashGreen,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          const Expanded(
+                            child: Text(
+                              'Total asignado',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            '$currencySymbol${item.totalAssigned.toStringAsFixed(2)}',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.navy,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
           );
         },
       ),

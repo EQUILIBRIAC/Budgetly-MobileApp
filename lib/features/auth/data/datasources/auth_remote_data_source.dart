@@ -3,8 +3,10 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../../../../core/config/api_config.dart';
+import '../../../../core/config/api_paths.dart';
 import '../../../../core/network/api_failure.dart';
 import '../../../../core/network/http_service.dart';
+import '../../../../core/storage/member_display_name_store.dart';
 import '../../../../core/utils/api_value_parsers.dart';
 import '../../../../domain/entities/user.dart';
 
@@ -113,6 +115,13 @@ class AuthRemoteDataSource {
         plan: resolvedPlan,
       );
 
+      await _persistDisplayName(
+        userId: userId,
+        email: responseEmail,
+        profile: profile,
+        signInEmail: normalizedEmail,
+      );
+
       return (user: user, token: token);
     }
 
@@ -126,5 +135,41 @@ class AuthRemoteDataSource {
     }
 
     throw ApiFailure.networkFromStatus(statusCode: code, body: bodyStr);
+  }
+
+  Future<void> _persistDisplayName({
+    required String userId,
+    required String email,
+    required Map<String, dynamic> profile,
+    required String signInEmail,
+  }) async {
+    final fromProfile = extractPersonNameFromMap(profile);
+    if (fromProfile != null && fromProfile.isNotEmpty) {
+      await MemberDisplayNameStore.saveForUserId(userId, fromProfile);
+      if (email.isNotEmpty) {
+        await MemberDisplayNameStore.saveForEmail(email, fromProfile);
+      }
+      return;
+    }
+
+    final byEmail = await MemberDisplayNameStore.loadByEmail();
+    final localName = byEmail[signInEmail.trim().toLowerCase()];
+    if (localName == null || localName.isEmpty) return;
+
+    await MemberDisplayNameStore.saveForUserId(userId, localName);
+    if (email.isNotEmpty) {
+      await MemberDisplayNameStore.saveForEmail(email, localName);
+    }
+
+    try {
+      await _http.put(
+        ApiPaths.userUpdateByEmail(email.isNotEmpty ? email : signInEmail),
+        body: {
+          'emailAddress': email.isNotEmpty ? email : signInEmail,
+          'personName': localName,
+          'password': '',
+        },
+      );
+    } catch (_) {}
   }
 }

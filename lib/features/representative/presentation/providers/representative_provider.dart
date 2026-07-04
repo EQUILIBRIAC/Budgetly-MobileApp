@@ -6,6 +6,7 @@ import 'package:budgetly_app/core/config/env_config.dart';
 import 'package:budgetly_app/domain/entities/contribution_entities.dart';
 import 'package:budgetly_app/domain/entities/household_entities.dart';
 import 'package:budgetly_app/core/network/http_service.dart';
+import 'package:budgetly_app/core/storage/member_display_name_store.dart';
 import 'package:budgetly_app/core/storage/storage_service.dart';
 
 class RepresentativeData {
@@ -189,6 +190,70 @@ class RepresentativeActions {
         'userId': uid,
         'isRepresentative': role.toLowerCase() == 'representative',
         'income': income ?? 0,
+      },
+    );
+  }
+
+  /// Actualiza ingreso mensual vía `PUT /household_member/{id}` (sincroniza UserIncome).
+  Future<HouseholdMember> updateMemberIncome({
+    required String membershipId,
+    required double income,
+  }) async {
+    final http = await _authorizedHttp();
+    final response = await http.put(
+      ApiPaths.householdMemberById(membershipId),
+      body: {
+        'householdId': null,
+        'userId': null,
+        'isRepresentative': null,
+        'income': income,
+        'allocations': null,
+      },
+    );
+    final parsed = ApiJson.objectData(response);
+    if (parsed == null) {
+      throw Exception('Respuesta inválida al guardar ingreso.');
+    }
+    return HouseholdMember.fromJson(parsed);
+  }
+
+  /// Guarda nombre visible localmente y lo sincroniza con el perfil del API si hay email.
+  Future<void> saveMemberDisplayName({
+    required String userId,
+    required String name,
+    String? email,
+  }) async {
+    final trimmed = name.trim();
+    if (userId.trim().isEmpty || trimmed.isEmpty) return;
+
+    await MemberDisplayNameStore.saveForUserId(userId, trimmed);
+    final normalizedEmail = email?.trim().toLowerCase() ?? '';
+    if (normalizedEmail.isNotEmpty) {
+      await MemberDisplayNameStore.saveForEmail(normalizedEmail, trimmed);
+      try {
+        await updateUserPersonName(
+          email: normalizedEmail,
+          personName: trimmed,
+        );
+      } catch (_) {}
+    }
+  }
+
+  Future<void> updateUserPersonName({
+    required String email,
+    required String personName,
+  }) async {
+    final normalizedEmail = email.trim().toLowerCase();
+    final trimmedName = personName.trim();
+    if (normalizedEmail.isEmpty || trimmedName.isEmpty) return;
+
+    final http = await _authorizedHttp();
+    await http.put(
+      ApiPaths.userUpdateByEmail(normalizedEmail),
+      body: {
+        'emailAddress': normalizedEmail,
+        'personName': trimmedName,
+        'password': '',
       },
     );
   }

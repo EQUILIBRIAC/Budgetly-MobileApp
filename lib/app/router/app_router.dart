@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../domain/entities/household_entities.dart';
 import '../../features/auth/presentation/providers/auth_providers.dart';
 import '../../features/auth/presentation/screens/forgot_password_screen.dart';
 import '../../features/auth/presentation/screens/login_screen.dart';
@@ -11,6 +12,10 @@ import '../../features/member/presentation/screens/member_dashboard_screen.dart'
 import '../../features/member/presentation/screens/member_household_status_screen.dart';
 import '../../features/member/presentation/screens/member_search_household_screen.dart';
 import '../../features/member/presentation/screens/member_settings_screen.dart';
+import '../../features/representative/presentation/screens/bill_payments_screen.dart';
+import '../../features/representative/presentation/screens/bill_contribution_breakdown_screen.dart';
+import '../../features/representative/presentation/screens/household_income_based_settings_screen.dart';
+import '../../features/representative/presentation/screens/representative_member_income_screen.dart';
 import '../../features/representative/presentation/screens/representative_screens.dart';
 import '../../features/representative/presentation/screens/representative_settings_screen.dart';
 import 'app_routes.dart';
@@ -76,8 +81,36 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const RepresentativeMembersScreen(),
       ),
       GoRoute(
+        path: AppRoutes.repMemberIncomes,
+        builder: (context, state) => const RepresentativeMemberIncomeScreen(),
+      ),
+      GoRoute(
         path: AppRoutes.repBills,
         builder: (context, state) => const RepresentativeBillsScreen(),
+        routes: [
+          GoRoute(
+            path: ':billId/breakdown',
+            builder: (context, state) {
+              final billId = state.pathParameters['billId'] ?? '';
+              final bill = state.extra;
+              return BillContributionBreakdownScreen(
+                billId: billId,
+                bill: bill is Bill ? bill : null,
+              );
+            },
+          ),
+          GoRoute(
+            path: ':billId/payments',
+            builder: (context, state) {
+              final billId = state.pathParameters['billId'] ?? '';
+              final bill = state.extra;
+              return BillPaymentsScreen(
+                billId: billId,
+                bill: bill is Bill ? bill : null,
+              );
+            },
+          ),
+        ],
       ),
       GoRoute(
         path: AppRoutes.repContributions,
@@ -86,6 +119,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.repSettings,
         builder: (context, state) => const RepresentativeSettingsScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.repHouseholdIncomeSettings,
+        builder: (context, state) =>
+            const HouseholdIncomeBasedSettingsScreen(),
       ),
     ],
     redirect: (context, state) =>

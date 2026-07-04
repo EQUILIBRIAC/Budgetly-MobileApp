@@ -3,6 +3,56 @@ import 'dart:convert';
 /// Parsing defensivo de valores que ASP.NET puede enviar como string, objeto anidado,
 /// tipo serializado incorrectamente (`ValueObjects.EmailAddress`), etc.
 
+/// Nombre de persona desde JSON del API (`name`, `personName`, value objects).
+String normalizeApiPersonName(dynamic raw) {
+  if (raw == null) return '';
+  if (raw is String) {
+    final s = raw.trim();
+    if (s.isEmpty) return '';
+    if (s.contains('PersonName') ||
+        s.contains('ValueObjects.') ||
+        s.contains('.Domain.')) {
+      return '';
+    }
+    return s;
+  }
+  if (raw is Map) {
+    for (final key in const [
+      'value',
+      'Value',
+      'name',
+      'Name',
+      'fullName',
+      'FullName',
+    ]) {
+      if (!raw.containsKey(key)) continue;
+      final inner = normalizeApiPersonName(raw[key]);
+      if (inner.isNotEmpty) return inner;
+    }
+  }
+  return '';
+}
+
+/// Lee nombre de persona desde mapas del API (`personName`, `name`, objetos anidados).
+String? extractPersonNameFromMap(Map<String, dynamic> json) {
+  for (final key in const [
+    'personName',
+    'name',
+    'PersonName',
+    'fullName',
+    'displayName',
+    'memberName',
+  ]) {
+    final parsed = normalizeApiPersonName(json[key]);
+    if (parsed.isNotEmpty) return parsed;
+  }
+  final user = json['user'];
+  if (user is Map<String, dynamic>) {
+    return extractPersonNameFromMap(user);
+  }
+  return null;
+}
+
 String normalizeApiEmail(dynamic raw) {
   if (raw == null) return '';
   if (raw is String) {

@@ -13,7 +13,13 @@ class AppRoutes {
   static const repDashboard = '/rep/dashboard';
   static const repHouseholds = '/rep/households';
   static const repMembers = '/rep/members';
+  static const repMemberIncomes = '/rep/member-incomes';
   static const repBills = '/rep/bills';
   static const repContributions = '/rep/contributions';
   static const repSettings = '/rep/settings';
+  static const repHouseholdIncomeSettings = '/rep/household/income-settings';
+
+  static String repBillBreakdown(String billId) => '/rep/bills/$billId/breakdown';
+
+  static String repBillPayments(String billId) => '/rep/bills/$billId/payments';
 }

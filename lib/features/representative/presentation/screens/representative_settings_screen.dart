@@ -467,6 +467,31 @@ class _RepresentativeSettingsScreenState
                   const SizedBox(height: 14),
                   Card(
                     elevation: 0,
+                    color: AppColors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      side: const BorderSide(color: AppColors.borderGray),
+                    ),
+                    child: ListTile(
+                      leading: const Icon(
+                        Icons.pie_chart_outline_rounded,
+                        color: AppColors.dashGreen,
+                      ),
+                      title: const Text(
+                        'Reparto por ingreso (IncomeBased)',
+                        style: TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      subtitle: const Text(
+                        'Configura el reparto proporcional y recalcula aportes.',
+                      ),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () =>
+                          context.push(AppRoutes.repHouseholdIncomeSettings),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Card(
+                    elevation: 0,
                     color: AppColors.dangerBg,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14),

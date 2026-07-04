@@ -1,9 +1,12 @@
+import 'package:budgetly_app/domain/entities/income_split_entities.dart';
+
 class Contribution {
   final String id;
   final String billId;
   final String householdId;
   final String? description;
   final DateTime deadlineForMembers;
+  final EStrategy strategy;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -13,11 +16,17 @@ class Contribution {
     required this.householdId,
     this.description,
     required this.deadlineForMembers,
+    this.strategy = EStrategy.even,
     required this.createdAt,
     required this.updatedAt,
   });
 
   factory Contribution.fromJson(Map<String, dynamic> json) {
+    final strategyRaw = json['strategy'];
+    final strategyInt = strategyRaw is int
+        ? strategyRaw
+        : int.tryParse(strategyRaw?.toString() ?? '');
+
     return Contribution(
       id: json['id'] ?? '',
       billId: json['billId'] ?? '',
@@ -27,6 +36,7 @@ class Contribution {
       description: json['description'],
       deadlineForMembers: DateTime.parse(
           json['deadlineForMembers'] ?? DateTime.now().toIso8601String()),
+      strategy: EStrategy.fromInt(strategyInt),
       createdAt:
           DateTime.parse(json['createdAt'] ?? DateTime.now().toIso8601String()),
       updatedAt:
@@ -40,6 +50,7 @@ class Contribution {
         'householdId': householdId,
         'description': description,
         'deadlineForMembers': deadlineForMembers.toIso8601String(),
+        'strategy': strategy.value,
         'createdAt': createdAt.toIso8601String(),
         'updatedAt': updatedAt.toIso8601String(),
       };
