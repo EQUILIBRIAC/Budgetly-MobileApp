@@ -21,7 +21,7 @@ class User {
     return User(
       id: json['id']?.toString() ?? '',
       email: normalizeApiEmail(json['email']),
-      role: json['role']?.toString().toLowerCase() ?? 'representative',
+      role: json['role']?.toString().trim().toLowerCase() ?? 'unknown',
       householdId:
           json['householdId']?.toString() ?? json['houseHoldId']?.toString() ?? '',
       isNewUser: parseApiBool(json['isNewUser'], false),

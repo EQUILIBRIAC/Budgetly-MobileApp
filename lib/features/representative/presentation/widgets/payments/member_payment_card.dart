@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import 'package:budgetly_app/app/l10n/app_localizations.dart';
 import 'package:budgetly_app/app/theme/app_colors.dart';
 import 'package:budgetly_app/domain/entities/payment_entities.dart';
 
@@ -20,6 +21,7 @@ class MemberPaymentCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l = context.l10n;
     final initial = item.memberName.isNotEmpty
         ? item.memberName[0].toUpperCase()
         : '?';
@@ -83,13 +85,13 @@ class MemberPaymentCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                _StatusChip(isDone: item.isDone),
+                _StatusChip(isDone: item.isDone, l: l),
               ],
             ),
             if (paidDate != null) ...[
               const SizedBox(height: 8),
               Text(
-                'Pagado el $paidDate',
+                l.t('Pagado el $paidDate', 'Paid on $paidDate'),
                 style: const TextStyle(fontSize: 12, color: AppColors.textGray),
               ),
             ],
@@ -104,7 +106,7 @@ class MemberPaymentCard extends StatelessWidget {
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
                     : const Icon(Icons.check_circle_outline, size: 18),
-                label: const Text('Marcar como pagada'),
+                label: Text(l.t('Marcar como pagada', 'Mark as paid')),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.dashGreen,
                   side: const BorderSide(color: AppColors.dashGreen),
@@ -119,9 +121,10 @@ class MemberPaymentCard extends StatelessWidget {
 }
 
 class _StatusChip extends StatelessWidget {
-  const _StatusChip({required this.isDone});
+  const _StatusChip({required this.isDone, required this.l});
 
   final bool isDone;
+  final AppLocalizations l;
 
   @override
   Widget build(BuildContext context) {
@@ -134,7 +137,7 @@ class _StatusChip extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
       ),
       child: Text(
-        isDone ? 'Pagada' : 'Pendiente',
+        isDone ? l.t('Pagada', 'Paid') : l.pending,
         style: TextStyle(
           fontSize: 11,
           fontWeight: FontWeight.w700,

@@ -2,9 +2,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:budgetly_app/app/l10n/app_localizations.dart';
+import 'package:budgetly_app/app/widgets/budgetly_logo.dart';
+import 'package:budgetly_app/core/utils/api_value_parsers.dart';
 import 'package:budgetly_app/features/auth/presentation/providers/auth_providers.dart';
 import 'package:budgetly_app/app/router/app_routes.dart';
-import 'package:budgetly_app/app/theme/app_colors.dart';
 
 class MemberDashboardLayout extends ConsumerStatefulWidget {
   final Widget child;
@@ -22,22 +24,231 @@ class MemberDashboardLayout extends ConsumerStatefulWidget {
 }
 
 class _MemberDashboardLayoutState extends ConsumerState<MemberDashboardLayout> {
-  final List<({String label, String icon, String route})> _menuItems = [
-    (label: 'Inicio', icon: 'home', route: 'member-dashboard'),
-    (label: 'Mis aportes', icon: 'check_square', route: 'member-contributions'),
-    (label: 'Estado del hogar', icon: 'file', route: 'member-household-status'),
-    (label: 'Buscar hogar', icon: 'search', route: 'member-search-household'),
-    (label: 'Configuración', icon: 'sliders_h', route: 'member-settings'),
+  static const _navMeta = <({IconData icon, String routeKey, String path})>[
+    (
+      icon: Icons.home_outlined,
+      routeKey: 'member-dashboard',
+      path: AppRoutes.memberDashboard,
+    ),
+    (
+      icon: Icons.receipt_long_outlined,
+      routeKey: 'member-bills',
+      path: AppRoutes.memberBills,
+    ),
+    (
+      icon: Icons.check_box_outlined,
+      routeKey: 'member-contributions',
+      path: AppRoutes.memberContributions,
+    ),
+    (
+      icon: Icons.settings_outlined,
+      routeKey: 'member-settings',
+      path: AppRoutes.memberSettings,
+    ),
   ];
+
+  List<({String label, IconData icon, String routeKey, String path})> _nav(
+    AppLocalizations l,
+  ) {
+    return [
+      (
+        label: l.home,
+        icon: _navMeta[0].icon,
+        routeKey: _navMeta[0].routeKey,
+        path: _navMeta[0].path,
+      ),
+      (
+        label: l.bills,
+        icon: _navMeta[1].icon,
+        routeKey: _navMeta[1].routeKey,
+        path: _navMeta[1].path,
+      ),
+      (
+        label: l.myContributions,
+        icon: _navMeta[2].icon,
+        routeKey: _navMeta[2].routeKey,
+        path: _navMeta[2].path,
+      ),
+      (
+        label: l.settings,
+        icon: _navMeta[3].icon,
+        routeKey: _navMeta[3].routeKey,
+        path: _navMeta[3].path,
+      ),
+    ];
+  }
+
+  String _initials(String email) {
+    if (email.isEmpty) return 'MB';
+    final part = email.split('@').first;
+    if (part.length >= 2) return part.substring(0, 2).toUpperCase();
+    return part.isNotEmpty ? part[0].toUpperCase() : 'MB';
+  }
+
+  void _go(String path) {
+    final scaffold = Scaffold.maybeOf(context);
+    if (scaffold?.isDrawerOpen ?? false) {
+      scaffold!.closeDrawer();
+    }
+    context.go(path);
+  }
 
   @override
   Widget build(BuildContext context) {
+    final l = context.l10n;
+    final navItems = _nav(l);
+    final scheme = Theme.of(context).colorScheme;
+    final bg = Theme.of(context).scaffoldBackgroundColor;
+    final auth = ref.watch(authControllerProvider);
+    final email = normalizeApiEmail(auth.currentUser?.email ?? '');
+
     return Scaffold(
-      backgroundColor: AppColors.lightGray,
+      backgroundColor: bg,
+      appBar: AppBar(
+        leading: Builder(
+          builder: (ctx) => IconButton(
+            icon: const Icon(Icons.menu_rounded),
+            tooltip: l.menu,
+            onPressed: () => Scaffold.of(ctx).openDrawer(),
+          ),
+        ),
+        title: Row(
+          children: [
+            const BudgetlyLogo(size: 28, iconOnly: true),
+            const SizedBox(width: 10),
+            Text(
+              memberScreenTitle(context, widget.currentRoute),
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+                fontSize: 18,
+                color: scheme.onSurface,
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: scheme.surface,
+        foregroundColor: scheme.onSurface,
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Divider(height: 1, color: scheme.outlineVariant),
+        ),
+      ),
+      drawer: Drawer(
+        surfaceTintColor: Colors.transparent,
+        backgroundColor: scheme.surface,
+        child: SafeArea(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const BudgetlyLogo(size: 44, showWordmark: true),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 22,
+                          backgroundColor: scheme.primaryContainer,
+                          child: Text(
+                            _initials(email),
+                            style: TextStyle(
+                              color: scheme.onPrimaryContainer,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                email.isEmpty ? l.memberRole : email,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  color: scheme.onSurface,
+                                  fontSize: 13,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 4),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: scheme.surfaceContainerHighest,
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Text(
+                                  l.memberRole,
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: scheme.onSurfaceVariant,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              Divider(height: 1, color: scheme.outlineVariant),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 16, 8),
+                child: Text(
+                  l.menuSection,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.8,
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+              for (final item in navItems)
+                _MemberDrawerTile(
+                  icon: item.icon,
+                  label: item.label,
+                  selected: widget.currentRoute == item.routeKey,
+                  onTap: () => _go(item.path),
+                ),
+              const Spacer(),
+              Divider(height: 1, color: scheme.outlineVariant),
+              ListTile(
+                leading: Icon(Icons.logout_rounded, color: scheme.error),
+                title: Text(
+                  l.logout,
+                  style: TextStyle(
+                    color: scheme.error,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  _logout();
+                },
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      ),
       body: SafeArea(
         bottom: false,
         child: Container(
-          color: AppColors.lightGray,
+          color: bg,
           width: double.infinity,
           height: double.infinity,
           child: widget.child,
@@ -45,13 +256,13 @@ class _MemberDashboardLayoutState extends ConsumerState<MemberDashboardLayout> {
       ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
-          color: AppColors.white,
+          color: scheme.surface,
           border: Border(
-            top: BorderSide(color: AppColors.borderGray, width: 1),
+            top: BorderSide(color: scheme.outlineVariant, width: 1),
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.08),
+              color: scheme.shadow.withValues(alpha: 0.08),
               blurRadius: 12,
               offset: const Offset(0, -2),
             ),
@@ -59,29 +270,20 @@ class _MemberDashboardLayoutState extends ConsumerState<MemberDashboardLayout> {
         ),
         child: SafeArea(
           top: false,
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-            child: Row(
-              children: [
-                // Menu Items (Lazy Row)
-                ..._menuItems.map((item) {
-                  final isActive = widget.currentRoute == item.route;
-                  return _buildNavItem(
-                    label: item.label,
-                    icon: item.icon,
-                    route: item.route,
-                    isActive: isActive,
-                  );
-                }),
-
-                // Spacer
-                const SizedBox(width: 8),
-
-                // Logout Button
-                _buildLogoutButton(),
-              ],
-            ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: navItems.map((item) {
+              final isActive = widget.currentRoute == item.routeKey;
+              return Expanded(
+                child: _buildNavItem(
+                  context: context,
+                  label: item.label,
+                  icon: item.icon,
+                  path: item.path,
+                  isActive: isActive,
+                ),
+              );
+            }).toList(),
           ),
         ),
       ),
@@ -89,68 +291,41 @@ class _MemberDashboardLayoutState extends ConsumerState<MemberDashboardLayout> {
   }
 
   Widget _buildNavItem({
+    required BuildContext context,
     required String label,
-    required String icon,
-    required String route,
+    required IconData icon,
+    required String path,
     required bool isActive,
   }) {
+    final scheme = Theme.of(context).colorScheme;
+    final activeColor = scheme.primary;
+    final inactiveColor = scheme.onSurfaceVariant;
+
     return GestureDetector(
-      onTap: () {
-        switch (route) {
-          case 'member-dashboard':
-            context.go(AppRoutes.memberDashboard);
-            break;
-          case 'member-contributions':
-            context.go(AppRoutes.memberContributions);
-            break;
-          case 'member-household-status':
-            context.go(AppRoutes.memberHouseholdStatus);
-            break;
-          case 'member-search-household':
-            context.go(AppRoutes.memberSearchHousehold);
-            break;
-          case 'member-settings':
-            context.go(AppRoutes.memberSettings);
-            break;
-        }
-      },
+      onTap: () => _go(path),
       child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
         decoration: BoxDecoration(
           color: isActive
-              ? AppColors.teal.withValues(alpha: 0.12)
+              ? activeColor.withValues(alpha: 0.12)
               : Colors.transparent,
           borderRadius: BorderRadius.circular(8),
-          border: isActive
-              ? Border.all(color: AppColors.teal, width: 1.5)
-              : null,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                color: isActive ? AppColors.teal : AppColors.lightGray,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Center(
-                child: Icon(
-                  _getIconData(icon),
-                  size: 18,
-                  color: isActive ? AppColors.white : AppColors.labelGray,
-                ),
-              ),
+            Icon(
+              icon,
+              size: 22,
+              color: isActive ? activeColor : inactiveColor,
             ),
             const SizedBox(height: 4),
             Text(
               label,
               style: TextStyle(
-                fontSize: 11,
-                color: isActive ? AppColors.teal : AppColors.textGray,
+                fontSize: 10,
+                color: isActive ? activeColor : inactiveColor,
                 fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
               ),
               textAlign: TextAlign.center,
@@ -163,81 +338,27 @@ class _MemberDashboardLayoutState extends ConsumerState<MemberDashboardLayout> {
     );
   }
 
-  Widget _buildLogoutButton() {
-    return GestureDetector(
-      onTap: _logout,
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: Colors.transparent,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                color: const Color(0xFFEF4444).withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Center(
-                child: Icon(
-                  Icons.logout,
-                  size: 18,
-                  color: Color(0xFFEF4444),
-                ),
-              ),
-            ),
-            const SizedBox(height: 4),
-            const Text(
-              'Salir',
-              style: TextStyle(
-                fontSize: 11,
-                color: Color(0xFFEF4444),
-                fontWeight: FontWeight.w700,
-              ),
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  IconData _getIconData(String iconName) {
-    final icons = {
-      'home': Icons.home,
-      'check_square': Icons.check_box,
-      'file': Icons.description,
-      'search': Icons.search,
-      'sliders_h': Icons.settings,
-    };
-    return icons[iconName] ?? Icons.circle;
-  }
-
   void _logout() {
+    final l = context.l10n;
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Cerrar sesión'),
-        content: const Text('¿Estás seguro de que deseas cerrar sesión?'),
+        title: Text(l.logoutConfirmTitle),
+        content: Text(l.logoutConfirmBody),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancelar'),
+            child: Text(l.cancel),
           ),
           TextButton(
             onPressed: () {
               Navigator.pop(context);
               _performLogout();
             },
-            child: const Text('Cerrar sesión', style: TextStyle(color: Colors.red)),
+            child: Text(
+              l.logoutAction,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
           ),
         ],
       ),
@@ -252,3 +373,36 @@ class _MemberDashboardLayoutState extends ConsumerState<MemberDashboardLayout> {
   }
 }
 
+class _MemberDrawerTile extends StatelessWidget {
+  const _MemberDrawerTile({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final color = selected ? scheme.primary : scheme.onSurface;
+
+    return ListTile(
+      leading: Icon(icon, color: color),
+      title: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+        ),
+      ),
+      selected: selected,
+      selectedTileColor: scheme.primary.withValues(alpha: 0.08),
+      onTap: onTap,
+    );
+  }
+}

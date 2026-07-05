@@ -1,4 +1,5 @@
 import 'package:budgetly_app/domain/entities/income_split_entities.dart';
+import 'package:budgetly_app/core/utils/api_value_parsers.dart';
 
 class Contribution {
   final String id;
@@ -78,18 +79,16 @@ class MemberContribution {
   });
 
   factory MemberContribution.fromJson(Map<String, dynamic> json) {
+    final now = DateTime.now();
     return MemberContribution(
-      id: json['id'] ?? '',
-      memberId: json['memberId'] ?? '',
-      contributionId: json['contributionId'] ?? '',
+      id: json['id']?.toString() ?? '',
+      memberId: json['memberId']?.toString() ?? '',
+      contributionId: json['contributionId']?.toString() ?? '',
       amount: _parseDouble(json['amount']) ?? 0.0,
-      status:
-          json['status'] is bool ? (json['status'] ? 1 : 0) : (json['status'] ?? 0),
-      payedAt: json['payedAt'] != null ? DateTime.parse(json['payedAt']) : null,
-      createdAt:
-          DateTime.parse(json['createdAt'] ?? DateTime.now().toIso8601String()),
-      updatedAt:
-          DateTime.parse(json['updatedAt'] ?? DateTime.now().toIso8601String()),
+      status: parseMemberContributionStatus(json['status']),
+      payedAt: parseApiDateTimeOptional(json['payedAt']),
+      createdAt: parseApiDateTime(json['createdAt'], now),
+      updatedAt: parseApiDateTime(json['updatedAt'], now),
     );
   }
 
@@ -104,7 +103,7 @@ class MemberContribution {
         'updatedAt': updatedAt.toIso8601String(),
       };
 
-  bool get isPaid => status == 1;
+  bool get isPaid => status == 1 || payedAt != null;
 
   static double? _parseDouble(dynamic value) {
     if (value == null) return null;

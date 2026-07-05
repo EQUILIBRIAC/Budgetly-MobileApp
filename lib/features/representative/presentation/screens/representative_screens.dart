@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import 'package:budgetly_app/app/l10n/app_localizations.dart';
 import 'package:budgetly_app/features/auth/presentation/providers/auth_providers.dart';
 import 'package:budgetly_app/app/router/app_routes.dart';
 import 'package:budgetly_app/app/theme/app_colors.dart';
@@ -22,40 +23,55 @@ void _repSnack(BuildContext context, String text) {
   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
 }
 
+bool _sessionIsPremium(AuthController auth) {
+  if (auth.session != null) return auth.session!.isPremium;
+  final plan = auth.currentUser?.plan ?? '';
+  return plan.toUpperCase().contains('PREMIUM') || plan == '2';
+}
+
 Future<void> _copyToClipboard(BuildContext context, String value) async {
   await Clipboard.setData(ClipboardData(text: value));
   if (!context.mounted) return;
-  _repSnack(context, 'Copiado al portapapeles');
+  _repSnack(context, AppLocalizations.of(context).t('Copiado al portapapeles', 'Copied to clipboard'));
 }
 
 Future<void> _openBillActionSheet(BuildContext context, Bill bill) async {
   await showModalBottomSheet<void>(
     context: context,
-    builder: (ctx) => SafeArea(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ListTile(
-            leading: const Icon(Icons.payments_outlined, color: AppColors.dashGreen),
-            title: const Text('Ver pagos'),
-            subtitle: const Text('Estado y marcar aportes como pagados'),
-            onTap: () {
-              Navigator.pop(ctx);
-              context.push(AppRoutes.repBillPayments(bill.id), extra: bill);
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.pie_chart_outline, color: AppColors.dashBlue),
-            title: const Text('Ver desglose'),
-            subtitle: const Text('Reparto IncomeBased por miembro'),
-            onTap: () {
-              Navigator.pop(ctx);
-              context.push(AppRoutes.repBillBreakdown(bill.id), extra: bill);
-            },
-          ),
-        ],
-      ),
-    ),
+    builder: (ctx) {
+      final l = AppLocalizations.of(ctx);
+      return SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.payments_outlined, color: AppColors.dashGreen),
+              title: Text(l.t('Ver pagos', 'View payments')),
+              subtitle: Text(l.t(
+                'Estado y marcar aportes como pagados',
+                'Status and mark contributions as paid',
+              )),
+              onTap: () {
+                Navigator.pop(ctx);
+                context.push(AppRoutes.repBillPayments(bill.id), extra: bill);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.pie_chart_outline, color: AppColors.dashBlue),
+              title: Text(l.t('Ver desglose', 'View breakdown')),
+              subtitle: Text(l.t(
+                'Reparto IncomeBased por miembro',
+                'IncomeBased split per member',
+              )),
+              onTap: () {
+                Navigator.pop(ctx);
+                context.push(AppRoutes.repBillBreakdown(bill.id), extra: bill);
+              },
+            ),
+          ],
+        ),
+      );
+    },
   );
 }
 
@@ -65,7 +81,10 @@ RepresentativeData? _requireLoadedHousehold(WidgetRef ref, BuildContext context)
   if (data == null || hid.isEmpty || data.household == null) {
     _repSnack(
       context,
-      'Espera a que carguen los datos o crea un hogar en «Hogares».',
+      AppLocalizations.of(context).t(
+        'Espera a que carguen los datos o crea un hogar en «Hogares».',
+        'Wait for data to load or create a household in «Households».',
+      ),
     );
     return null;
   }
@@ -85,7 +104,10 @@ Future<void> _openCreateBillSheet(
   if (creator == null) {
     _repSnack(
       context,
-      'Tu cuenta no tiene un ID numérico de usuario para crear facturas.',
+      AppLocalizations.of(context).t(
+        'Tu cuenta no tiene un ID numérico de usuario para crear facturas.',
+        'Your account has no numeric user ID to create bills.',
+      ),
     );
     return;
   }
@@ -102,6 +124,7 @@ Future<void> _openCreateBillSheet(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
     builder: (ctx) {
+      final l = AppLocalizations.of(ctx);
       return StatefulBuilder(
         builder: (context, setState) {
           return Padding(
@@ -115,7 +138,7 @@ Future<void> _openCreateBillSheet(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Text(
-                    'Nueva factura',
+                    l.t('Nueva factura', 'New bill'),
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
                           fontWeight: FontWeight.w700,
                           color: AppColors.navy,
@@ -123,15 +146,15 @@ Future<void> _openCreateBillSheet(
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Hogar: ${data.household?.name ?? ''}',
+                    l.t('Hogar: ${data.household?.name ?? ''}', 'Household: ${data.household?.name ?? ''}'),
                     style: const TextStyle(color: AppColors.textGray, fontSize: 13),
                   ),
                   const SizedBox(height: 18),
                   TextField(
                     controller: desc,
-                    decoration: const InputDecoration(
-                      labelText: 'Descripción',
-                      hintText: 'Ej. Luz marzo',
+                    decoration: InputDecoration(
+                      labelText: l.t('Descripción', 'Description'),
+                      hintText: l.t('Ej. Luz marzo', 'E.g. March electricity'),
                     ),
                     textCapitalization: TextCapitalization.sentences,
                   ),
@@ -141,14 +164,14 @@ Future<void> _openCreateBillSheet(
                     keyboardType:
                         const TextInputType.numberWithOptions(decimal: true),
                     decoration: InputDecoration(
-                      labelText: 'Monto',
+                      labelText: l.t('Monto', 'Amount'),
                       suffixText: data.currency == 'USD' ? 'USD' : 'PEN',
                     ),
                   ),
                   const SizedBox(height: 8),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('Fecha de pago objetivo'),
+                    title: Text(l.t('Fecha de pago objetivo', 'Target payment date')),
                     subtitle: Text(
                       DateFormat.yMMMd(EnvConfig.localeDefault).format(paymentDue),
                     ),
@@ -180,7 +203,10 @@ Future<void> _openCreateBillSheet(
                       if (desc.text.trim().isEmpty || v == null) {
                         _repSnack(
                           context,
-                          'Completa descripción y un monto válido.',
+                          l.t(
+                            'Completa descripción y un monto válido.',
+                            'Enter a description and a valid amount.',
+                          ),
                         );
                         return;
                       }
@@ -196,7 +222,7 @@ Future<void> _openCreateBillSheet(
                         Navigator.pop(ctx);
                         scheduleRepresentativeProviderRefresh(ref);
                         if (hostContext.mounted) {
-                          _repSnack(hostContext, 'Factura registrada.');
+                          _repSnack(hostContext, l.t('Factura registrada.', 'Bill registered.'));
                         }
                       } catch (e) {
                         if (!hostContext.mounted) return;
@@ -204,11 +230,11 @@ Future<void> _openCreateBillSheet(
                       }
                     },
                     icon: const Icon(Icons.check),
-                    label: const Text('Guardar factura'),
+                    label: Text(l.t('Guardar factura', 'Save bill')),
                   ),
                   TextButton(
                     onPressed: () => Navigator.pop(ctx),
-                    child: const Text('Cancelar'),
+                    child: Text(l.t('Cancelar', 'Cancel')),
                   ),
                 ],
               ),
@@ -231,6 +257,7 @@ Future<void> _openAddMemberSheet(
 ) async {
   final userIdCtl = TextEditingController();
   final nameCtl = TextEditingController();
+  final emailCtl = TextEditingController();
   final incomeCtl = TextEditingController();
   String roleKey = 'member';
   final hostContext = context;
@@ -242,6 +269,7 @@ Future<void> _openAddMemberSheet(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
     builder: (ctx) {
+      final l = AppLocalizations.of(ctx);
       return StatefulBuilder(
         builder: (context, setState) {
           return Padding(
@@ -274,8 +302,12 @@ Future<void> _openAddMemberSheet(
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    'La otra persona debe tener cuenta en Budgetly y pasarte '
-                    'su ID de usuario (en su app: Ajustes).',
+                    l.t(
+                      'La otra persona debe tener cuenta en Budgetly y pasarte '
+                      'su ID de usuario (en su app: Ajustes).',
+                      'The other person needs a Budgetly account and must share '
+                      'their user ID (in their app: Settings).',
+                    ),
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: AppColors.labelGray,
                           height: 1.35,
@@ -285,18 +317,27 @@ Future<void> _openAddMemberSheet(
                   TextField(
                     controller: nameCtl,
                     textCapitalization: TextCapitalization.words,
-                    decoration: const InputDecoration(
-                      labelText: 'Nombre (opcional)',
-                      hintText: 'Ej. Juan',
+                    decoration: InputDecoration(
+                      labelText: l.t('Nombre (opcional)', 'Name (optional)'),
+                      hintText: l.t('Ej. Juan', 'E.g. John'),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: emailCtl,
+                    keyboardType: TextInputType.emailAddress,
+                    decoration: InputDecoration(
+                      labelText: l.t('Invitar por correo (alternativa)', 'Invite by email (alternative)'),
+                      hintText: l.t('persona@ejemplo.com', 'person@example.com'),
                     ),
                   ),
                   const SizedBox(height: 12),
                   TextField(
                     controller: userIdCtl,
                     keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: 'ID numérico del usuario',
-                      hintText: 'Ej. 12',
+                    decoration: InputDecoration(
+                      labelText: l.t('ID numérico del usuario', 'Numeric user ID'),
+                      hintText: l.t('Ej. 12', 'E.g. 12'),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -304,8 +345,8 @@ Future<void> _openAddMemberSheet(
                     controller: incomeCtl,
                     keyboardType:
                         const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(
-                      labelText: 'Ingreso estimado (opcional)',
+                    decoration: InputDecoration(
+                      labelText: l.t('Ingreso estimado (opcional)', 'Estimated income (optional)'),
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -315,14 +356,14 @@ Future<void> _openAddMemberSheet(
                       child: DropdownButton<String>(
                         value: roleKey,
                         onChanged: (v) => setState(() => roleKey = v ?? 'member'),
-                        items: const [
+                        items: [
                           DropdownMenuItem(
                             value: 'member',
-                            child: Text('Es miembro del hogar'),
+                            child: Text(l.t('Es miembro del hogar', 'Is a household member')),
                           ),
                           DropdownMenuItem(
                             value: 'representative',
-                            child: Text('Tiene rol de representante'),
+                            child: Text(l.t('Tiene rol de representante', 'Has representative role')),
                           ),
                         ],
                       ),
@@ -337,12 +378,49 @@ Future<void> _openAddMemberSheet(
                     ),
                     onPressed: () async {
                       try {
+                        final email = emailCtl.text.trim();
+                        if (email.isNotEmpty) {
+                          await ref
+                              .read(representativeActionsProvider)
+                              .sendInvitation(
+                                email: email,
+                                householdId: data.activeHouseholdId,
+                                description: nameCtl.text.trim(),
+                              );
+                          if (!ctx.mounted) return;
+                          Navigator.pop(ctx);
+                          if (hostContext.mounted) {
+                            _repSnack(
+                              hostContext,
+                              l.t(
+                                'Invitación enviada a $email.',
+                                'Invitation sent to $email.',
+                              ),
+                            );
+                          }
+                          return;
+                        }
+
                         final userId = userIdCtl.text.trim();
+                        if (userId.isEmpty) {
+                          _repSnack(
+                            hostContext,
+                            'Ingresa un ID de usuario o un correo para invitar.',
+                          );
+                          return;
+                        }
+                        final auth = ref.read(authControllerProvider);
+                        final membersData =
+                            ref.read(householdMembersProvider).valueOrNull;
+                        final memberCount = membersData?.members.length ??
+                            data.members.length;
                         await ref.read(representativeActionsProvider).createMember(
                               householdId: data.activeHouseholdId,
                               userId: userId,
                               role: roleKey,
                               income: double.tryParse(incomeCtl.text.trim()),
+                              currentMemberCount: memberCount,
+                              isPremiumPlan: _sessionIsPremium(auth),
                             );
                         final displayName = nameCtl.text.trim();
                         if (displayName.isNotEmpty) {
@@ -358,7 +436,7 @@ Future<void> _openAddMemberSheet(
                         scheduleRepresentativeProviderRefresh(ref);
                         ref.invalidate(householdMembersProvider);
                         if (hostContext.mounted) {
-                          _repSnack(hostContext, 'Miembro vinculado al hogar.');
+                          _repSnack(hostContext, l.t('Miembro vinculado al hogar.', 'Member linked to household.'));
                         }
                       } catch (e) {
                         if (!hostContext.mounted) return;
@@ -366,11 +444,11 @@ Future<void> _openAddMemberSheet(
                       }
                     },
                     icon: const Icon(Icons.person_add_alt),
-                    label: const Text('Añadir miembro'),
+                    label: Text(l.t('Añadir miembro', 'Add member')),
                   ),
                   TextButton(
                     onPressed: () => Navigator.pop(ctx),
-                    child: const Text('Cerrar'),
+                    child: Text(l.t('Cerrar', 'Close')),
                   ),
                 ],
               ),
@@ -383,6 +461,8 @@ Future<void> _openAddMemberSheet(
 
   WidgetsBinding.instance.addPostFrameCallback((_) {
     userIdCtl.dispose();
+    nameCtl.dispose();
+    emailCtl.dispose();
     incomeCtl.dispose();
   });
 }
@@ -416,6 +496,7 @@ Future<void> _openContributionSheet(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
     builder: (ctx) {
+      final l = AppLocalizations.of(ctx);
       return StatefulBuilder(
         builder: (context, setState) {
           final safeItems = items.isNotEmpty ? items : data.bills;
@@ -434,7 +515,7 @@ Future<void> _openContributionSheet(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Text(
-                    'Nueva contribución',
+                    l.t('Nueva contribución', 'New contribution'),
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
                           fontWeight: FontWeight.w700,
                           color: AppColors.navy,
@@ -477,14 +558,14 @@ Future<void> _openContributionSheet(
                   const SizedBox(height: 12),
                   TextField(
                     controller: desc,
-                    decoration: const InputDecoration(
-                      labelText: 'Nota para el equipo (opcional)',
+                    decoration: InputDecoration(
+                      labelText: l.t('Nota para el equipo (opcional)', 'Team note (optional)'),
                     ),
                     textCapitalization: TextCapitalization.sentences,
                   ),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('Fecha límite'),
+                    title: Text(l.t('Fecha límite', 'Deadline')),
                     subtitle:
                         Text(DateFormat.yMMMd(EnvConfig.localeDefault).format(deadline)),
                     trailing: IconButton(
@@ -522,7 +603,7 @@ Future<void> _openContributionSheet(
                         Navigator.pop(ctx);
                         scheduleRepresentativeProviderRefresh(ref);
                         if (hostContext.mounted) {
-                          _repSnack(hostContext, 'Contribución registrada.');
+                          _repSnack(hostContext, l.t('Contribución registrada.', 'Contribution registered.'));
                         }
                       } catch (e) {
                         if (!hostContext.mounted) return;
@@ -530,11 +611,11 @@ Future<void> _openContributionSheet(
                       }
                     },
                     icon: const Icon(Icons.add_card),
-                    label: const Text('Crear contribución'),
+                    label: Text(l.t('Crear contribución', 'Create contribution')),
                   ),
                   TextButton(
                     onPressed: () => Navigator.pop(ctx),
-                    child: const Text('Cancelar'),
+                    child: Text(l.t('Cancelar', 'Cancel')),
                   ),
                 ],
               ),
@@ -566,6 +647,7 @@ Future<void> _openEditBillSheet(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
     builder: (ctx) {
+      final l = AppLocalizations.of(ctx);
       return StatefulBuilder(
         builder: (context, setState) {
           return Padding(
@@ -588,20 +670,20 @@ Future<void> _openEditBillSheet(
                   const SizedBox(height: 12),
                   TextField(
                     controller: desc,
-                    decoration: const InputDecoration(labelText: 'Descripción'),
+                    decoration: InputDecoration(labelText: l.t('Descripción', 'Description')),
                   ),
                   TextField(
                     controller: amount,
                     keyboardType:
                         const TextInputType.numberWithOptions(decimal: true),
                     decoration: InputDecoration(
-                      labelText: 'Monto',
+                      labelText: l.t('Monto', 'Amount'),
                       suffixText: data.currency == 'USD' ? 'USD' : 'PEN',
                     ),
                   ),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('Día de pago'),
+                    title: Text(l.t('Día de pago', 'Payment day')),
                     subtitle: Text(
                       DateFormat.yMMMd(EnvConfig.localeDefault).format(paymentDue),
                     ),
@@ -626,7 +708,7 @@ Future<void> _openEditBillSheet(
                     onPressed: () async {
                       final v = double.tryParse(amount.text.replaceAll(',', '.'));
                       if (v == null || desc.text.trim().isEmpty) {
-                        _repSnack(context, 'Datos incompletos.');
+                        _repSnack(context, l.t('Datos incompletos.', 'Incomplete data.'));
                         return;
                       }
                       try {
@@ -640,7 +722,7 @@ Future<void> _openEditBillSheet(
                         Navigator.pop(ctx);
                         scheduleRepresentativeProviderRefresh(ref);
                         if (hostContext.mounted) {
-                          _repSnack(hostContext, 'Factura actualizada.');
+                          _repSnack(hostContext, l.t('Factura actualizada.', 'Bill updated.'));
                         }
                       } catch (e) {
                         if (!hostContext.mounted) return;
@@ -648,7 +730,7 @@ Future<void> _openEditBillSheet(
                       }
                     },
                     icon: const Icon(Icons.save_outlined),
-                    label: const Text('Guardar'),
+                    label: Text(l.t('Guardar', 'Save')),
                   ),
                 ],
               ),
@@ -685,6 +767,7 @@ Future<void> _openEditHouseholdSheet(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
     builder: (ctx) {
+      final l = AppLocalizations.of(ctx);
       return StatefulBuilder(
         builder: (context, setState) {
           return Padding(
@@ -704,19 +787,19 @@ Future<void> _openEditHouseholdSheet(
                   ),
                   TextField(
                     controller: name,
-                    decoration: const InputDecoration(labelText: 'Nombre'),
+                    decoration: InputDecoration(labelText: l.t('Nombre', 'Name')),
                   ),
                   TextField(
                     controller: description,
                     maxLines: 2,
-                    decoration: const InputDecoration(labelText: 'Descripción'),
+                    decoration: InputDecoration(labelText: l.t('Descripción', 'Description')),
                   ),
                   TextField(
                     controller: memberCount,
                     keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: 'Número de miembros',
-                      helperText: 'Según API PUT /house_hold/{id}',
+                    decoration: InputDecoration(
+                      labelText: l.t('Número de miembros', 'Number of members'),
+                      helperText: l.t('Según API PUT /house_hold/{id}', 'Per API PUT /house_hold/{id}'),
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -744,7 +827,7 @@ Future<void> _openEditHouseholdSheet(
                     onPressed: () async {
                       final mc = int.tryParse(memberCount.text.trim());
                       if (name.text.trim().isEmpty || mc == null) {
-                        _repSnack(context, 'Nombre y número de miembros válidos.');
+                        _repSnack(context, l.t('Nombre y número de miembros válidos.', 'Enter a valid name and member count.'));
                         return;
                       }
                       try {
@@ -759,7 +842,7 @@ Future<void> _openEditHouseholdSheet(
                         Navigator.pop(ctx);
                         scheduleRepresentativeProviderRefresh(ref);
                         if (hostContext.mounted) {
-                          _repSnack(hostContext, 'Hogar actualizado.');
+                          _repSnack(hostContext, l.t('Hogar actualizado.', 'Household updated.'));
                         }
                       } catch (e) {
                         if (!hostContext.mounted) return;
@@ -767,7 +850,7 @@ Future<void> _openEditHouseholdSheet(
                       }
                     },
                     icon: const Icon(Icons.save_outlined),
-                    label: const Text('Guardar'),
+                    label: Text(l.t('Guardar', 'Save')),
                   ),
                 ],
               ),
@@ -789,17 +872,18 @@ Future<void> _confirmDeleteBill(
   WidgetRef ref,
   String billId,
 ) async {
+  final l = AppLocalizations.of(context);
   final ok = await showDialog<bool>(
     context: context,
     builder: (ctx) => AlertDialog(
-      title: const Text('Eliminar factura'),
-      content: const Text('¿Eliminar esta factura del hogar? (DELETE /api/v1/bills/{id})'),
+      title: Text(l.t('Eliminar factura', 'Delete bill')),
+      content: Text(l.t('¿Eliminar esta factura del hogar? (DELETE /api/v1/bills/{id})', 'Delete this bill from the household? (DELETE /api/v1/bills/{id})')),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('No')),
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(l.t('No', 'No'))),
         FilledButton(
           style: FilledButton.styleFrom(backgroundColor: AppColors.dangerRed),
           onPressed: () => Navigator.pop(ctx, true),
-          child: const Text('Eliminar'),
+          child: Text(l.t('Eliminar', 'Delete')),
         ),
       ],
     ),
@@ -809,7 +893,7 @@ Future<void> _confirmDeleteBill(
     await ref.read(representativeActionsProvider).deleteBill(billId);
     if (!context.mounted) return;
     scheduleRepresentativeProviderRefresh(ref);
-    _repSnack(context, 'Factura eliminada.');
+    _repSnack(context, l.t('Factura eliminada.', 'Bill deleted.'));
   } catch (e) {
     if (!context.mounted) return;
     _repSnack(context, ApiFailure.wrap(e).messageEs);
@@ -822,20 +906,25 @@ Future<void> _confirmDeleteMember(
   String membershipId,
 ) async {
   if (membershipId.isEmpty) return;
+  final l = AppLocalizations.of(context);
   final ok = await showDialog<bool>(
     context: context,
     builder: (ctx) => AlertDialog(
-      title: const Text('Quitar miembro'),
-      content: const Text(
-        'Quitar la vinculación de esta persona con el hogar '
-        '(DELETE /api/v1/household_member/{id}).',
+      title: Text(l.t('Quitar miembro', 'Remove member')),
+      content: Text(
+        l.t(
+          'Quitar la vinculación de esta persona con el hogar '
+          '(DELETE /api/v1/household_member/{id}).',
+          'Remove this person\'s link to the household '
+          '(DELETE /api/v1/household_member/{id}).',
+        ),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(l.t('Cancelar', 'Cancel'))),
         FilledButton(
           style: FilledButton.styleFrom(backgroundColor: AppColors.dangerRed),
           onPressed: () => Navigator.pop(ctx, true),
-          child: const Text('Quitar'),
+          child: Text(l.t('Quitar', 'Remove')),
         ),
       ],
     ),
@@ -846,7 +935,7 @@ Future<void> _confirmDeleteMember(
     if (!context.mounted) return;
     scheduleRepresentativeProviderRefresh(ref);
     ref.invalidate(householdMembersProvider);
-    _repSnack(context, 'Miembro quitado del hogar.');
+    _repSnack(context, l.t('Miembro quitado del hogar.', 'Member removed from household.'));
   } catch (e) {
     if (!context.mounted) return;
     _repSnack(context, ApiFailure.wrap(e).messageEs);
@@ -859,17 +948,18 @@ Future<void> _confirmDeleteContribution(
   String contributionId,
 ) async {
   if (contributionId.isEmpty) return;
+  final l = AppLocalizations.of(context);
   final ok = await showDialog<bool>(
     context: context,
     builder: (ctx) => AlertDialog(
-      title: const Text('Eliminar aporte'),
-      content: const Text('¿Eliminar esta contribución?'),
+      title: Text(l.t('Eliminar aporte', 'Delete contribution')),
+      content: Text(l.t('¿Eliminar esta contribución?', 'Delete this contribution?')),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('No')),
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(l.t('No', 'No'))),
         FilledButton(
           style: FilledButton.styleFrom(backgroundColor: AppColors.dangerRed),
           onPressed: () => Navigator.pop(ctx, true),
-          child: const Text('Eliminar'),
+          child: Text(l.t('Eliminar', 'Delete')),
         ),
       ],
     ),
@@ -879,7 +969,7 @@ Future<void> _confirmDeleteContribution(
     await ref.read(representativeActionsProvider).deleteContribution(contributionId);
     if (!context.mounted) return;
     scheduleRepresentativeProviderRefresh(ref);
-    _repSnack(context, 'Contribución eliminada.');
+    _repSnack(context, l.t('Contribución eliminada.', 'Contribution deleted.'));
   } catch (e) {
     if (!context.mounted) return;
     _repSnack(context, ApiFailure.wrap(e).messageEs);
@@ -891,6 +981,7 @@ class RepresentativeDashboardScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l = context.l10n;
     final state = ref.watch(representativeProvider);
     final auth = ref.watch(authControllerProvider);
     final plan = auth.currentUser?.plan ?? 'FREE';
@@ -904,6 +995,21 @@ class RepresentativeDashboardScreen extends ConsumerWidget {
         state: state,
         onRetry: () => scheduleRepresentativeProviderRefresh(ref),
         builder: (data) {
+          if (data.activeHouseholdId.isEmpty) {
+            return _RepEmpty(
+              message: l.t('Aún no tienes un hogar activo.', 'You don\'t have an active household yet.'),
+              hint: l.t('Ve a «Hogares» y crea el primero con «Nuevo hogar» para empezar.', 'Go to «Households» and create your first with «New household» to get started.'),
+              action: FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.dashGreen,
+                  foregroundColor: AppColors.white,
+                ),
+                onPressed: () => context.go(AppRoutes.repHouseholds),
+                icon: const Icon(Icons.add_home_outlined),
+                label: Text(l.t('Ir a Hogares', 'Go to Households')),
+              ),
+            );
+          }
           final sym = data.currency == 'USD' ? '\$' : 'S/';
           final hid = data.activeHouseholdId;
           final shortId =
@@ -1009,7 +1115,7 @@ class RepresentativeDashboardScreen extends ConsumerWidget {
                       icon: Icons.people_outline,
                       label: 'Miembros',
                       value: '${data.members.length}',
-                      hint: 'Equipo activo',
+                      hint: l.t('Equipo activo', 'Active team'),
                       accent: AppColors.dashGreen,
                     ),
                     const SizedBox(width: 12),
@@ -1099,7 +1205,7 @@ class RepresentativeDashboardScreen extends ConsumerWidget {
                 children: [
                   ActionChip(
                     avatar: Icon(Icons.add, size: 18, color: AppColors.dashBlue),
-                    label: const Text('Nueva factura'),
+                    label: Text(l.t('Nueva factura', 'New bill')),
                     onPressed: () {
                       final d = _requireLoadedHousehold(ref, context);
                       if (d == null) return;
@@ -1108,7 +1214,7 @@ class RepresentativeDashboardScreen extends ConsumerWidget {
                   ),
                   ActionChip(
                     avatar: Icon(Icons.person_add_alt, size: 18, color: AppColors.dashBlue),
-                    label: const Text('Invitar miembro'),
+                    label: Text(l.t('Invitar miembro', 'Invite member')),
                     onPressed: () {
                       final d = _requireLoadedHousehold(ref, context);
                       if (d == null) return;
@@ -1117,7 +1223,7 @@ class RepresentativeDashboardScreen extends ConsumerWidget {
                   ),
                   ActionChip(
                     avatar: Icon(Icons.add_card, size: 18, color: AppColors.dashPurple),
-                    label: const Text('Nueva contribución'),
+                    label: Text(l.t('Nueva contribución', 'New contribution')),
                     onPressed: () {
                       final d = _requireLoadedHousehold(ref, context);
                       if (d == null) return;
@@ -1145,6 +1251,7 @@ class RepresentativeHouseholdsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l = context.l10n;
     final state = ref.watch(representativeProvider);
     return RepresentativeDashboardLayout(
       currentRoute: AppRoutes.repHouseholds,
@@ -1153,7 +1260,7 @@ class RepresentativeHouseholdsScreen extends ConsumerWidget {
         backgroundColor: AppColors.dashGreen,
         foregroundColor: AppColors.white,
         icon: const Icon(Icons.add),
-        label: const Text('Nuevo hogar'),
+        label: Text(l.t('Nuevo hogar', 'New household')),
       ),
       child: _AsyncRepView(
         state: state,
@@ -1166,17 +1273,20 @@ class RepresentativeHouseholdsScreen extends ConsumerWidget {
                   : <Household>[]);
           if (homes.isEmpty) {
             return _RepEmpty(
-              message: 'Aún no tienes hogares registrados.',
-              hint:
-                  'Crea el primero con «Nuevo hogar». Luego podrás agregar facturas y miembros.',
+              message: l.t('Aún no tienes hogares registrados.', 'You have no households yet.'),
+              hint: l.t('Crea el primero con «Nuevo hogar». Luego podrás agregar facturas y miembros.', 'Create the first with «New household». Then add bills and members.'),
             );
           }
           return ListView(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 88),
             children: [
               Text(
+                l.t(
                 'Administras ${homes.length} hogar${homes.length == 1 ? '' : 'es'}. '
                 'El marcado como activo es el que usan las demás pestañas.',
+                'You manage ${homes.length} household${homes.length == 1 ? '' : 's'}. '
+                'The one marked active is used by the other tabs.',
+              ),
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: AppColors.textGray,
                       height: 1.4,
@@ -1248,7 +1358,7 @@ class RepresentativeHouseholdsScreen extends ConsumerWidget {
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            'Moneda ${h.currency}',
+                            l.t('Moneda ${h.currency}', 'Currency ${h.currency}'),
                             style: const TextStyle(
                               fontSize: 13,
                               color: AppColors.textGray,
@@ -1256,7 +1366,7 @@ class RepresentativeHouseholdsScreen extends ConsumerWidget {
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            '${h.memberCount} miembro${h.memberCount == 1 ? '' : 's'}',
+                            l.t('${h.memberCount} miembro${h.memberCount == 1 ? '' : 's'}', '${h.memberCount} member${h.memberCount == 1 ? '' : 's'}'),
                             style: const TextStyle(
                               fontSize: 13,
                               color: AppColors.dashOrange,
@@ -1277,7 +1387,7 @@ class RepresentativeHouseholdsScreen extends ConsumerWidget {
                             child: TextButton.icon(
                               onPressed: () => _copyToClipboard(context, h.id),
                               icon: const Icon(Icons.copy_rounded, size: 18),
-                              label: const Text('Copiar ID del hogar'),
+                              label: Text(l.t('Copiar ID del hogar', 'Copy household ID')),
                             ),
                           ),
                           const SizedBox(height: 8),
@@ -1307,7 +1417,7 @@ class RepresentativeHouseholdsScreen extends ConsumerWidget {
                                     }
                                   },
                                   icon: const Icon(Icons.swap_horiz_rounded, size: 18),
-                                  label: const Text('Usar este hogar'),
+                                  label: Text(l.t('Usar este hogar', 'Use this household')),
                                 ),
                               FilledButton.icon(
                                 style: FilledButton.styleFrom(
@@ -1321,7 +1431,7 @@ class RepresentativeHouseholdsScreen extends ConsumerWidget {
                                   data,
                                 ),
                                 icon: const Icon(Icons.edit_outlined, size: 18),
-                                label: const Text('Editar'),
+                                label: Text(l.t('Editar', 'Edit')),
                               ),
                             ],
                           ),
@@ -1344,6 +1454,7 @@ class RepresentativeMembersScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l = context.l10n;
     final membersState = ref.watch(householdMembersProvider);
     return RepresentativeDashboardLayout(
       currentRoute: AppRoutes.repMembers,
@@ -1356,7 +1467,7 @@ class RepresentativeMembersScreen extends ConsumerWidget {
         backgroundColor: AppColors.dashGreen,
         foregroundColor: AppColors.white,
         icon: const Icon(Icons.person_add_alt_1),
-        label: const Text('Agregar miembro'),
+        label: Text(l.t('Agregar miembro', 'Add member')),
       ),
       child: membersState.when(
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -1381,7 +1492,7 @@ class RepresentativeMembersScreen extends ConsumerWidget {
                   ),
                   onPressed: () => ref.invalidate(householdMembersProvider),
                   icon: const Icon(Icons.refresh),
-                  label: const Text('Reintentar'),
+                  label: Text(l.t('Reintentar', 'Retry')),
                 ),
               ],
             ),
@@ -1391,7 +1502,7 @@ class RepresentativeMembersScreen extends ConsumerWidget {
           final sym = data.currency == 'USD' ? '\$' : 'S/';
           if (data.members.isEmpty) {
             return _RepEmpty(
-              message: 'Aquí aparecerán quienes comparten tus gastos.',
+              message: l.t('Aquí aparecerán quienes comparten tus gastos.', 'People who share your expenses will appear here.'),
               hint:
                   'Cada persona necesita cuenta en Budgetly. Pídeles su '
                   'ID numérico (lo ven como miembro en Ajustes) y vínculos aquí.',
@@ -1406,7 +1517,7 @@ class RepresentativeMembersScreen extends ConsumerWidget {
                   foregroundColor: AppColors.white,
                 ),
                 icon: const Icon(Icons.person_add_alt_1),
-                label: const Text('Invitar primer miembro'),
+                label: Text(l.t('Invitar primer miembro', 'Invite first member')),
               ),
             );
           }
@@ -1418,7 +1529,7 @@ class RepresentativeMembersScreen extends ConsumerWidget {
                 child: OutlinedButton.icon(
                   onPressed: () => context.go(AppRoutes.repMemberIncomes),
                   icon: const Icon(Icons.payments_outlined),
-                  label: const Text('Registrar ingresos mensuales'),
+                  label: Text(l.t('Registrar ingresos mensuales', 'Register monthly incomes')),
                 ),
               ),
               Expanded(
@@ -1481,7 +1592,7 @@ class RepresentativeMembersScreen extends ConsumerWidget {
                               const SizedBox(height: 4),
                               Text(
                                 member.income > 0
-                                    ? 'Ingreso mensual: $sym${member.income.toStringAsFixed(2)}'
+                                    ? l.t('Ingreso mensual: $sym${member.income.toStringAsFixed(2)}', 'Monthly income: $sym${member.income.toStringAsFixed(2)}')
                                     : 'Ingreso mensual: sin registrar',
                                 style: TextStyle(
                                   fontSize: 12,
@@ -1509,7 +1620,49 @@ class RepresentativeMembersScreen extends ConsumerWidget {
                               if (member.householdMemberId.isNotEmpty)
                                 PopupMenuButton<String>(
                                   onSelected: (v) async {
-                                    if (v == 'del') {
+                                    if (v == 'promote') {
+                                      try {
+                                        await ref
+                                            .read(representativeActionsProvider)
+                                            .promoteMember(
+                                              member.householdMemberId,
+                                            );
+                                        if (!context.mounted) return;
+                                        ref.invalidate(householdMembersProvider);
+                                        scheduleRepresentativeProviderRefresh(ref);
+                                        _repSnack(
+                                          context,
+                                          l.t('${member.displayName} ahora es representante.', '${member.displayName} is now a representative.'),
+                                        );
+                                      } catch (e) {
+                                        if (!context.mounted) return;
+                                        _repSnack(
+                                          context,
+                                          ApiFailure.wrap(e).messageEs,
+                                        );
+                                      }
+                                    } else if (v == 'demote') {
+                                      try {
+                                        await ref
+                                            .read(representativeActionsProvider)
+                                            .demoteMember(
+                                              member.householdMemberId,
+                                            );
+                                        if (!context.mounted) return;
+                                        ref.invalidate(householdMembersProvider);
+                                        scheduleRepresentativeProviderRefresh(ref);
+                                        _repSnack(
+                                          context,
+                                          l.t('${member.displayName} ahora es miembro.', '${member.displayName} is now a member.'),
+                                        );
+                                      } catch (e) {
+                                        if (!context.mounted) return;
+                                        _repSnack(
+                                          context,
+                                          ApiFailure.wrap(e).messageEs,
+                                        );
+                                      }
+                                    } else if (v == 'del') {
                                       await _confirmDeleteMember(
                                         context,
                                         ref,
@@ -1517,13 +1670,23 @@ class RepresentativeMembersScreen extends ConsumerWidget {
                                       );
                                     }
                                   },
-                                  itemBuilder: (ctx) => const [
+                                  itemBuilder: (ctx) => [
+                                    if (!member.isRepresentative)
+                                      PopupMenuItem(
+                                        value: 'promote',
+                                        child: Text(l.t('Ascender a representante', 'Promote to representative')),
+                                      ),
+                                    if (member.isRepresentative)
+                                      PopupMenuItem(
+                                        value: 'demote',
+                                        child: Text(l.t('Degradar a miembro', 'Demote to member')),
+                                      ),
                                     PopupMenuItem(
                                       value: 'del',
                                       child: Text(
-                                        'Quitar del hogar',
-                                        style:
-                                            TextStyle(color: AppColors.dangerRed),
+                                        l.t('Quitar del hogar', 'Remove from household'),
+                                        style: const TextStyle(
+                                            color: AppColors.dangerRed),
                                       ),
                                     ),
                                   ],
@@ -1549,6 +1712,7 @@ class RepresentativeBillsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l = context.l10n;
     final state = ref.watch(representativeProvider);
     return RepresentativeDashboardLayout(
       currentRoute: AppRoutes.repBills,
@@ -1561,7 +1725,7 @@ class RepresentativeBillsScreen extends ConsumerWidget {
         backgroundColor: AppColors.dashGreen,
         foregroundColor: AppColors.white,
         icon: const Icon(Icons.add),
-        label: const Text('Nueva factura'),
+        label: Text(l.t('Nueva factura', 'New bill')),
       ),
       child: _AsyncRepView(
         state: state,
@@ -1570,9 +1734,8 @@ class RepresentativeBillsScreen extends ConsumerWidget {
           final sym = data.currency == 'USD' ? '\$' : 'S/';
           if (data.bills.isEmpty) {
             return _RepEmpty(
-              message: 'Registra servicios, alquiler o cualquier gasto recurrente.',
-              hint:
-                  'Cuando existan facturas podrás crear contribuciones para repartirlas.',
+              message: l.t('Registra servicios, alquiler o cualquier gasto recurrente.', 'Record utilities, rent or any recurring expense.'),
+              hint: l.t('Cuando existan facturas podrás crear contribuciones para repartirlas.', 'Once bills exist you can create contributions to split them.'),
               action: FilledButton.icon(
                 onPressed: () {
                   final loaded = _requireLoadedHousehold(ref, context);
@@ -1584,7 +1747,7 @@ class RepresentativeBillsScreen extends ConsumerWidget {
                   foregroundColor: AppColors.white,
                 ),
                 icon: const Icon(Icons.add),
-                label: const Text('Registrar factura'),
+                label: Text(l.t('Registrar factura', 'Register bill')),
               ),
             );
           }
@@ -1621,13 +1784,16 @@ class RepresentativeBillsScreen extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Vence: $dueDate'
-                        '${bill.category != null && bill.category!.isNotEmpty ? ' · ${bill.category}' : ''}',
+                        l.t('Vence: $dueDate', 'Due: $dueDate') +
+                            (bill.category != null &&
+                                    bill.category!.isNotEmpty
+                                ? ' · ${bill.category}'
+                                : ''),
                       ),
                       if (progress != null && progress.totalMembersCount > 0) ...[
                         const SizedBox(height: 6),
                         Text(
-                          '${progress.paidMembersCount}/${progress.totalMembersCount} pagados',
+                          l.t('${progress.paidMembersCount}/${progress.totalMembersCount} pagados', '${progress.paidMembersCount}/${progress.totalMembersCount} paid'),
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w600,
@@ -1677,18 +1843,24 @@ class RepresentativeBillsScreen extends ConsumerWidget {
                           }
                         },
                         itemBuilder: (ctx) => [
-                          const PopupMenuItem(
+                          PopupMenuItem(
                             value: 'payments',
-                            child: Text('Ver pagos'),
+                            child: Text(l.t('Ver pagos', 'View payments')),
                           ),
-                          const PopupMenuItem(
+                          PopupMenuItem(
                             value: 'breakdown',
-                            child: Text('Ver desglose'),
+                            child: Text(l.t('Ver desglose', 'View breakdown')),
                           ),
-                          const PopupMenuItem(value: 'edit', child: Text('Editar')),
-                          const PopupMenuItem(
+                          PopupMenuItem(
+                            value: 'edit',
+                            child: Text(l.t('Editar', 'Edit')),
+                          ),
+                          PopupMenuItem(
                             value: 'del',
-                            child: Text('Eliminar', style: TextStyle(color: AppColors.dangerRed)),
+                            child: Text(
+                              l.t('Eliminar', 'Delete'),
+                              style: const TextStyle(color: AppColors.dangerRed),
+                            ),
                           ),
                         ],
                       ),
@@ -1709,6 +1881,7 @@ class RepresentativeContributionsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l = context.l10n;
     final state = ref.watch(representativeProvider);
     return RepresentativeDashboardLayout(
       currentRoute: AppRoutes.repContributions,
@@ -1721,7 +1894,7 @@ class RepresentativeContributionsScreen extends ConsumerWidget {
         backgroundColor: AppColors.dashGreen,
         foregroundColor: AppColors.white,
         icon: const Icon(Icons.add_card),
-        label: const Text('Nueva contribución'),
+        label: Text(l.t('Nueva contribución', 'New contribution')),
       ),
       child: _AsyncRepView(
         state: state,
@@ -1789,7 +1962,7 @@ class RepresentativeContributionsScreen extends ConsumerWidget {
                         icon: Icons.volunteer_activism_outlined,
                         label: 'Contribuciones',
                         value: '${data.contributions.length}',
-                        hint: 'Registradas',
+                        hint: l.t('Registradas', 'Registered'),
                         accent: AppColors.dashPurple,
                       ),
                     ],
@@ -1806,10 +1979,8 @@ class RepresentativeContributionsScreen extends ConsumerWidget {
                 header,
                 Expanded(
                   child: _RepEmpty(
-                    message:
-                        'Las contribuciones reparten el pago de una factura.',
-                    hint:
-                        'Registra facturas en «Gastos» y vuelve a crear un aporte.',
+                    message: l.t('Las contribuciones reparten el pago de una factura.', 'Contributions split payment for a bill.'),
+                    hint: l.t('Registra facturas en «Gastos» y vuelve a crear un aporte.', 'Register bills in «Expenses» and create a contribution.'),
                     action: FilledButton.icon(
                       onPressed: () {
                         final loaded = _requireLoadedHousehold(ref, context);
@@ -1821,7 +1992,7 @@ class RepresentativeContributionsScreen extends ConsumerWidget {
                         foregroundColor: AppColors.white,
                       ),
                       icon: const Icon(Icons.add_card),
-                      label: const Text('Crear contribución'),
+                      label: Text(l.t('Crear contribución', 'Create contribution')),
                     ),
                   ),
                 ),
@@ -1857,6 +2028,7 @@ class _ContributionsBreakdownList extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l = context.l10n;
     final overviewAsync = ref.watch(contributionsOverviewProvider);
 
     return overviewAsync.when(
@@ -1871,7 +2043,7 @@ class _ContributionsBreakdownList extends ConsumerWidget {
               const SizedBox(height: 12),
               FilledButton(
                 onPressed: () => ref.invalidate(contributionsOverviewProvider),
-                child: const Text('Reintentar'),
+                child: Text(l.t('Reintentar', 'Retry')),
               ),
             ],
           ),
@@ -1983,16 +2155,16 @@ class _ContributionsBreakdownList extends ConsumerWidget {
                               ref.invalidate(contributionsOverviewProvider);
                             }
                           },
-                          itemBuilder: (ctx) => const [
+                          itemBuilder: (ctx) => [
                             PopupMenuItem(
                               value: 'copy',
-                              child: Text('Copiar ID'),
+                              child: Text(l.t('Copiar ID', 'Copy ID')),
                             ),
                             PopupMenuItem(
                               value: 'del',
                               child: Text(
-                                'Eliminar',
-                                style: TextStyle(color: AppColors.dangerRed),
+                                l.t('Eliminar', 'Delete'),
+                                style: const TextStyle(color: AppColors.dangerRed),
                               ),
                             ),
                           ],
@@ -2001,9 +2173,9 @@ class _ContributionsBreakdownList extends ConsumerWidget {
                     ),
                     if (item.memberShares.isNotEmpty) ...[
                       const Divider(height: 20),
-                      const Text(
-                        'Desglose por miembro',
-                        style: TextStyle(
+                      Text(
+                        l.t('Desglose por miembro', 'Breakdown by member'),
+                        style: const TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
                           color: AppColors.labelGray,
@@ -2079,12 +2251,17 @@ Future<void> _showCreateHouseholdDialog(BuildContext context, WidgetRef ref) asy
   final descriptionController = TextEditingController();
   int currencyCode = 1;
   final hostContext = context;
+  final repData = ref.read(representativeProvider).valueOrNull;
+  final ownedCount = repData?.ownedHouseholds.length ?? 0;
+  final auth = ref.read(authControllerProvider);
+  final isPremium = _sessionIsPremium(auth);
 
   await showDialog(
     context: context,
     builder: (context) {
+      final l = context.l10n;
       return AlertDialog(
-        title: const Text('Crear hogar'),
+        title: Text(l.t('Crear hogar', 'Create household')),
         content: SingleChildScrollView(
           child: StatefulBuilder(
             builder: (context, setState) => Column(
@@ -2093,17 +2270,17 @@ Future<void> _showCreateHouseholdDialog(BuildContext context, WidgetRef ref) asy
                 TextField(
                   controller: nameController,
                   textCapitalization: TextCapitalization.words,
-                  decoration: const InputDecoration(
-                    labelText: 'Nombre del hogar',
-                    hintText: 'Ej. Departamento centro',
+                  decoration: InputDecoration(
+                    labelText: l.t('Nombre del hogar', 'Household name'),
+                    hintText: l.t('Ej. Departamento centro', 'E.g. Downtown apartment'),
                   ),
                 ),
                 const SizedBox(height: 10),
                 TextField(
                   controller: descriptionController,
                   maxLines: 2,
-                  decoration: const InputDecoration(
-                    labelText: 'Descripción (opcional)',
+                  decoration: InputDecoration(
+                    labelText: l.t('Descripción (opcional)', 'Description (optional)'),
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -2111,17 +2288,23 @@ Future<void> _showCreateHouseholdDialog(BuildContext context, WidgetRef ref) asy
                   alignment: Alignment.centerLeft,
                   child: Row(
                     children: [
-                      const Text(
-                        'Moneda:',
-                        style: TextStyle(color: AppColors.labelGray),
+                      Text(
+                        l.t('Moneda:', 'Currency:'),
+                        style: const TextStyle(color: AppColors.labelGray),
                       ),
                       const SizedBox(width: 12),
                       DropdownButtonHideUnderline(
                         child: DropdownButton<int>(
                           value: currencyCode,
-                          items: const [
-                            DropdownMenuItem(value: 1, child: Text('Soles (PEN)')),
-                            DropdownMenuItem(value: 2, child: Text('Dólares (USD)')),
+                          items: [
+                            DropdownMenuItem(
+                              value: 1,
+                              child: Text(l.t('Soles (PEN)', 'Soles (PEN)')),
+                            ),
+                            DropdownMenuItem(
+                              value: 2,
+                              child: Text(l.t('Dólares (USD)', 'US Dollars (USD)')),
+                            ),
                           ],
                           onChanged: (value) =>
                               setState(() => currencyCode = value ?? 1),
@@ -2137,7 +2320,7 @@ Future<void> _showCreateHouseholdDialog(BuildContext context, WidgetRef ref) asy
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancelar'),
+            child: Text(l.t('Cancelar', 'Cancel')),
           ),
           FilledButton(
             style: FilledButton.styleFrom(
@@ -2146,7 +2329,7 @@ Future<void> _showCreateHouseholdDialog(BuildContext context, WidgetRef ref) asy
             ),
             onPressed: () async {
               if (nameController.text.trim().isEmpty) {
-                _repSnack(context, 'El nombre es obligatorio.');
+                _repSnack(context, l.t('El nombre es obligatorio.', 'Name is required.'));
                 return;
               }
               try {
@@ -2154,19 +2337,21 @@ Future<void> _showCreateHouseholdDialog(BuildContext context, WidgetRef ref) asy
                       name: nameController.text,
                       description: descriptionController.text,
                       currencyCode: currencyCode,
+                      ownedHouseholdCount: ownedCount,
+                      isPremiumPlan: isPremium,
                     );
                 if (!context.mounted) return;
                 Navigator.pop(context);
                 scheduleRepresentativeProviderRefresh(ref);
                 if (hostContext.mounted) {
-                  _repSnack(hostContext, 'Hogar creado. Actualizando datos…');
+                  _repSnack(hostContext, l.t('Hogar creado. Actualizando datos…', 'Household created. Refreshing data…'));
                 }
               } catch (e) {
                 if (!hostContext.mounted) return;
                 _repSnack(hostContext, ApiFailure.wrap(e).messageEs);
               }
             },
-            child: const Text('Crear'),
+            child: Text(l.t('Crear', 'Create')),
           ),
         ],
       );
@@ -2330,6 +2515,7 @@ class _AsyncRepView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l = context.l10n;
     return state.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (error, _) => LayoutBuilder(
@@ -2364,7 +2550,7 @@ class _AsyncRepView extends StatelessWidget {
                     ),
                     onPressed: onRetry,
                     icon: const Icon(Icons.refresh, size: 20),
-                    label: const Text('Reintentar'),
+                    label: Text(l.retry),
                   ),
                 ],
               ),

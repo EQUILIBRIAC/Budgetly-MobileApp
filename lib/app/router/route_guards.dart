@@ -1,7 +1,10 @@
 import 'package:go_router/go_router.dart';
 
+import '../../core/auth/role_navigation.dart';
+import '../../domain/entities/auth_session.dart';
 import '../../features/auth/presentation/providers/auth_providers.dart';
 import 'app_routes.dart';
+
 /// Reglas centralizadas de navegación según sesión y rol.
 String? resolveAuthRedirect({
   required AuthController auth,
@@ -23,21 +26,39 @@ String? resolveAuthRedirect({
     return isPublic ? null : AppRoutes.login;
   }
 
+  final session = auth.session;
+  if (session == null) {
+    return AppRoutes.login;
+  }
+
+  if (!session.isKnownRole) {
+    return location == AppRoutes.unknownRole ? null : AppRoutes.unknownRole;
+  }
+
   if (isPublic || location == AppRoutes.splash) {
-    return auth.role == 'member'
-        ? AppRoutes.memberDashboard
-        : AppRoutes.repDashboard;
+    return RoleNavigation.homeFor(session);
   }
 
-  final isMemberPath = location.startsWith('/member/');
-  final isRepPath = location.startsWith('/rep/');
-
-  if (auth.role == 'member' && isRepPath) {
-    return AppRoutes.memberDashboard;
+  if (session.isMember) {
+    if (session.householdId.trim().isEmpty) {
+      if (location == AppRoutes.memberSearchHousehold) return null;
+      return AppRoutes.memberSearchHousehold;
+    }
+    if (location.startsWith('/rep/')) {
+      return AppRoutes.memberDashboard;
+    }
+    return null;
   }
-  if (auth.role != 'member' && isMemberPath) {
-    return AppRoutes.repDashboard;
+
+  if (session.isRepresentative) {
+    if (location.startsWith('/member/')) {
+      return AppRoutes.repDashboard;
+    }
+    return null;
   }
 
-  return null;
+  return AppRoutes.unknownRole;
 }
+
+String homeRouteForSession(AuthSession session) =>
+    RoleNavigation.homeFor(session);

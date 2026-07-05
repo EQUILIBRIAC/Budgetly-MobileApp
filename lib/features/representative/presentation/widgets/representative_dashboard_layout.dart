@@ -2,33 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:budgetly_app/app/l10n/app_localizations.dart';
 import 'package:budgetly_app/app/router/app_routes.dart';
 import 'package:budgetly_app/app/theme/app_colors.dart';
+import 'package:budgetly_app/app/widgets/budgetly_logo.dart';
 import 'package:budgetly_app/core/utils/api_value_parsers.dart';
 import 'package:budgetly_app/features/auth/presentation/providers/auth_providers.dart';
-
-String representativeScreenTitle(String route) {
-  switch (route) {
-    case AppRoutes.repDashboard:
-      return 'Dashboard';
-    case AppRoutes.repHouseholds:
-      return 'Hogares';
-    case AppRoutes.repMembers:
-      return 'Miembros';
-    case AppRoutes.repMemberIncomes:
-      return 'Ingresos de miembros';
-    case AppRoutes.repBills:
-      return 'Gastos del hogar';
-    case AppRoutes.repContributions:
-      return 'Aportes';
-    case AppRoutes.repSettings:
-      return 'Configuración';
-    case AppRoutes.repHouseholdIncomeSettings:
-      return 'Reparto por ingreso';
-    default:
-      return 'Budgetly';
-  }
-}
 
 class RepresentativeDashboardLayout extends ConsumerWidget {
   const RepresentativeDashboardLayout({
@@ -42,14 +21,25 @@ class RepresentativeDashboardLayout extends ConsumerWidget {
   final String currentRoute;
   final Widget? floatingActionButton;
 
-  static const _nav = <({String label, IconData icon, String route})>[
-    (label: 'Inicio', icon: Icons.dashboard_rounded, route: AppRoutes.repDashboard),
-    (label: 'Hogares', icon: Icons.home_work_outlined, route: AppRoutes.repHouseholds),
-    (label: 'Miembros', icon: Icons.group_outlined, route: AppRoutes.repMembers),
-    (label: 'Gastos', icon: Icons.account_balance_wallet_outlined, route: AppRoutes.repBills),
-    (label: 'Aportes', icon: Icons.bar_chart_rounded, route: AppRoutes.repContributions),
-    (label: 'Ajustes', icon: Icons.tune_rounded, route: AppRoutes.repSettings),
+  static const _navMeta = <({IconData icon, String route})>[
+    (icon: Icons.dashboard_rounded, route: AppRoutes.repDashboard),
+    (icon: Icons.home_work_outlined, route: AppRoutes.repHouseholds),
+    (icon: Icons.group_outlined, route: AppRoutes.repMembers),
+    (icon: Icons.account_balance_wallet_outlined, route: AppRoutes.repBills),
+    (icon: Icons.bar_chart_rounded, route: AppRoutes.repContributions),
+    (icon: Icons.tune_rounded, route: AppRoutes.repSettings),
   ];
+
+  List<({String label, IconData icon, String route})> _nav(AppLocalizations l) {
+    return [
+      (label: l.home, icon: _navMeta[0].icon, route: _navMeta[0].route),
+      (label: l.households, icon: _navMeta[1].icon, route: _navMeta[1].route),
+      (label: l.members, icon: _navMeta[2].icon, route: _navMeta[2].route),
+      (label: l.bills, icon: _navMeta[3].icon, route: _navMeta[3].route),
+      (label: l.contributions, icon: _navMeta[4].icon, route: _navMeta[4].route),
+      (label: l.settings, icon: _navMeta[5].icon, route: _navMeta[5].route),
+    ];
+  }
 
   String _initials(String? email) {
     if (email == null || email.trim().isEmpty) return 'US';
@@ -60,9 +50,11 @@ class RepresentativeDashboardLayout extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l = context.l10n;
+    final navItems = _nav(l);
     final auth = ref.watch(authControllerProvider);
     final email = normalizeApiEmail(auth.currentUser?.email ?? '');
-    final routeIdx = _nav.indexWhere((e) => e.route == currentRoute);
+    final routeIdx = navItems.indexWhere((e) => e.route == currentRoute);
     final idx = routeIdx >= 0 ? routeIdx : 0;
 
     void go(String route) {
@@ -79,12 +71,12 @@ class RepresentativeDashboardLayout extends ConsumerWidget {
         leading: Builder(
           builder: (ctx) => IconButton(
             icon: const Icon(Icons.menu_rounded),
-            tooltip: 'Menú',
+            tooltip: l.menu,
             onPressed: () => Scaffold.of(ctx).openDrawer(),
           ),
         ),
         title: Text(
-          representativeScreenTitle(currentRoute),
+          representativeScreenTitle(context, currentRoute),
           style: const TextStyle(
             color: AppColors.navy,
             fontWeight: FontWeight.w700,
@@ -101,7 +93,7 @@ class RepresentativeDashboardLayout extends ConsumerWidget {
         ),
         actions: [
           IconButton(
-            tooltip: 'Alertas (próximamente)',
+            tooltip: l.alertsComingSoon,
             onPressed: () {},
             icon: Stack(
               alignment: Alignment.topRight,
@@ -133,65 +125,72 @@ class RepresentativeDashboardLayout extends ConsumerWidget {
             children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
-                child: Row(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    CircleAvatar(
-                      radius: 28,
-                      backgroundColor: AppColors.dashBadgeBlue,
-                      child: Text(
-                        _initials(email),
-                        style: const TextStyle(
-                          color: AppColors.dashBlue,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 18,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            email.isEmpty ? 'Representante' : email,
+                    const BudgetlyLogo(size: 44, showWordmark: true),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 22,
+                          backgroundColor: AppColors.dashBadgeBlue,
+                          child: Text(
+                            _initials(email),
                             style: const TextStyle(
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.navy,
+                              color: AppColors.dashBlue,
+                              fontWeight: FontWeight.w700,
                               fontSize: 14,
                             ),
-                            overflow: TextOverflow.ellipsis,
                           ),
-                          const SizedBox(height: 4),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: AppColors.dashBadgeGray,
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: const Text(
-                              'Representante',
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: AppColors.labelGray,
-                                fontWeight: FontWeight.w600,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                email.isEmpty ? l.representativeRole : email,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.navy,
+                                  fontSize: 13,
+                                ),
+                                overflow: TextOverflow.ellipsis,
                               ),
-                            ),
+                              const SizedBox(height: 4),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppColors.dashBadgeGray,
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Text(
+                                  l.representativeRole,
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    color: AppColors.labelGray,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
               ),
               const Divider(height: 1),
-              const Padding(
-                padding: EdgeInsets.fromLTRB(20, 16, 16, 8),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 16, 8),
                 child: Text(
-                  'GENERAL',
-                  style: TextStyle(
+                  l.generalSection,
+                  style: const TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 0.8,
@@ -199,18 +198,18 @@ class RepresentativeDashboardLayout extends ConsumerWidget {
                   ),
                 ),
               ),
-              for (final item in _nav.take(5))
+              for (final item in navItems.take(5))
                 _DrawerTile(
                   icon: item.icon,
                   label: item.label,
                   selected: currentRoute == item.route,
                   onTap: () => go(item.route),
                 ),
-              const Padding(
-                padding: EdgeInsets.fromLTRB(20, 16, 16, 8),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 16, 8),
                 child: Text(
-                  'HERRAMIENTAS',
-                  style: TextStyle(
+                  l.toolsSection,
+                  style: const TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 0.8,
@@ -220,19 +219,19 @@ class RepresentativeDashboardLayout extends ConsumerWidget {
               ),
               _DrawerTile(
                 icon: Icons.payments_outlined,
-                label: 'Ingresos de miembros',
+                label: l.memberIncomes,
                 selected: currentRoute == AppRoutes.repMemberIncomes,
                 onTap: () => go(AppRoutes.repMemberIncomes),
               ),
               _DrawerTile(
                 icon: Icons.settings_outlined,
-                label: 'Ajustes',
+                label: l.settings,
                 selected: currentRoute == AppRoutes.repSettings,
                 onTap: () => go(AppRoutes.repSettings),
               ),
               _DrawerTile(
                 icon: Icons.person_outline,
-                label: 'Perfil',
+                label: l.profile,
                 selected: false,
                 onTap: () => go(AppRoutes.repSettings),
               ),
@@ -241,9 +240,9 @@ class RepresentativeDashboardLayout extends ConsumerWidget {
               ListTile(
                 leading:
                     const Icon(Icons.logout_rounded, color: AppColors.dangerRed),
-                title: const Text(
-                  'Cerrar sesión',
-                  style: TextStyle(
+                title: Text(
+                  l.logout,
+                  style: const TextStyle(
                     color: AppColors.dangerRed,
                     fontWeight: FontWeight.w600,
                   ),
@@ -287,9 +286,9 @@ class RepresentativeDashboardLayout extends ConsumerWidget {
           backgroundColor: AppColors.white,
           surfaceTintColor: Colors.transparent,
           selectedIndex: idx,
-          onDestinationSelected: (i) => context.go(_nav[i].route),
+          onDestinationSelected: (i) => context.go(navItems[i].route),
           destinations: [
-            for (final item in _nav)
+            for (final item in navItems)
               NavigationDestination(
                 icon: Icon(item.icon),
                 label: item.label,

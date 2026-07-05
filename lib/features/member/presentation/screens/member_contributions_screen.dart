@@ -1,32 +1,61 @@
 ﻿import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:budgetly_app/core/config/api_paths.dart';
 import 'package:budgetly_app/core/config/env_config.dart';
 import 'package:budgetly_app/domain/entities/contribution_entities.dart';
 import 'package:budgetly_app/domain/entities/household_entities.dart';
+import 'package:budgetly_app/domain/entities/payment_entities.dart';
 import 'package:budgetly_app/core/network/http_service.dart';
 import 'package:budgetly_app/core/storage/storage_service.dart';
+import 'package:budgetly_app/features/auth/presentation/providers/auth_session_providers.dart';
+import 'package:budgetly_app/features/member/domain/member_contribution_utils.dart';
 import 'package:budgetly_app/features/member/presentation/widgets/member_dashboard_layout.dart';
-import 'package:budgetly_app/app/theme/app_colors.dart';
+import 'package:budgetly_app/features/member/presentation/widgets/member_no_household_view.dart';
+import 'package:budgetly_app/features/representative/data/member_contribution_api_service.dart';
+import 'package:budgetly_app/app/l10n/app_localizations.dart';
+import 'package:budgetly_app/features/member/presentation/widgets/member_page_styles.dart';
 
-class MemberContributionsScreen extends StatefulWidget {
+class MemberContributionsScreen extends ConsumerStatefulWidget {
   const MemberContributionsScreen({super.key});
 
   @override
-  State<MemberContributionsScreen> createState() =>
+  ConsumerState<MemberContributionsScreen> createState() =>
       _MemberContributionsScreenState();
 }
 
-class _MemberContributionsScreenState extends State<MemberContributionsScreen> {
-  late final TextEditingController _incomeController;
+class _MemberContributionsScreenState
+    extends ConsumerState<MemberContributionsScreen> {  late final TextEditingController _incomeController;
   bool _isLoading = true;
+  bool _needsHousehold = false;
   bool _isSavingIncome = false;
   String _error = '';
   String _success = '';
 
-  List<HouseholdMember> _members = [];
   List<MemberContribution> _memberContributions = [];
+  List<Contribution> _contributions = [];
+  List<Bill> _bills = [];
   String _memberId = '';
   double _currentIncome = 0.0;
+  final Set<String> _markingIds = {};
+
+  Map<String, Contribution> get _contributionsById => {
+        for (final c in _contributions) c.id: c,
+      };
+
+  Map<String, Bill> get _billsById => {
+        for (final b in _bills) b.id: b,
+      };
+
+  List<MemberContribution> get _myContributions {
+    final validIds = _contributions.map((c) => c.id).toSet();
+    final deduped = MemberContributionUtils.dedupeByContribution(
+      _memberContributions,
+      validContributionIds: validIds.isEmpty ? null : validIds,
+      contributionsById: _contributionsById,
+    );
+    if (_memberId.isEmpty) return deduped;
+    return deduped.where((c) => c.memberId == _memberId).toList();
+  }
 
   @override
   void initState() {
@@ -42,6 +71,13 @@ class _MemberContributionsScreenState extends State<MemberContributionsScreen> {
   }
 
   Future<void> _loadData() async {
+    if (!mounted) return;
+    setState(() {
+      _isLoading = true;
+      _error = '';
+      _needsHousehold = false;
+    });
+
     try {
       final userStr = await _getStoredUser();
       if (userStr == null) throw Exception('Usuario no encontrado');
@@ -49,49 +85,54 @@ class _MemberContributionsScreenState extends State<MemberContributionsScreen> {
       final user = userStr;
       final householdId = _toString(user['householdId']);
       if (householdId == null || householdId.isEmpty) {
-        throw Exception('Información de usuario incompleta');
+        if (!mounted) return;
+        setState(() {
+          _needsHousehold = true;
+          _isLoading = false;
+        });
+        return;
       }
 
       final httpService = HttpService(baseUrl: EnvConfig.apiBaseUrl);
-      
-      // Set token on the service
       final token = await StorageService.getToken();
       if (token != null) {
         httpService.setToken(token);
       }
 
-      final [memberList, contributions, memberContribs, bills] = await Future.wait([
-        _fetchMembers(httpService, householdId),
-        _fetchContributions(httpService, householdId),
-        _fetchMemberContributions(httpService),
-        _fetchBills(httpService, householdId),
-      ]);
+      final memberList = await _fetchMembers(httpService, householdId);
+      final userId = _toString(user['id']);
+      final member = memberList.firstWhere(
+        (m) => m.userId == userId,
+        orElse: () => HouseholdMember(
+          id: '',
+          userId: userId ?? '',
+          householdId: householdId,
+          joinedAt: DateTime.now(),
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        ),
+      );
 
+      final memberContribs = member.id.isNotEmpty
+          ? await _fetchMemberContributions(httpService, member.id)
+          : <MemberContribution>[];
+
+      final contributions =
+          await _fetchContributions(httpService, householdId);
+      final bills = await _fetchBills(httpService, householdId);
+
+      if (!mounted) return;
       setState(() {
-        _members = memberList as List<HouseholdMember>;
-        _memberContributions = memberContribs as List<MemberContribution>;
-
-        // Find current member - handle both String and int IDs
-        final userId = _toString(user['id']);
-        final member = _members.firstWhere(
-          (m) => m.userId == userId,
-          orElse: () => HouseholdMember(
-            id: '',
-            userId: userId ?? '',
-            householdId: householdId,
-            joinedAt: DateTime.now(),
-            createdAt: DateTime.now(),
-            updatedAt: DateTime.now(),
-          ),
-        );
-
+        _memberContributions = memberContribs;
+        _contributions = contributions;
+        _bills = bills;
         _memberId = member.id;
         _currentIncome = member.income ?? 0.0;
         _incomeController.text = _currentIncome.toStringAsFixed(2);
-
         _isLoading = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = e.toString().replaceAll('Exception: ', '');
         _isLoading = false;
@@ -103,55 +144,44 @@ class _MemberContributionsScreenState extends State<MemberContributionsScreen> {
     HttpService httpService,
     String householdId,
   ) async {
-    try {
-      final response = await httpService.get(
-        ApiPaths.householdMembersByHousehold(householdId),
-      );
-      final list = ApiJson.listData(response);
-      return list.map((json) => HouseholdMember.fromJson(json)).toList();
-    } catch (e) {
-      return [];
-    }
+    final response = await httpService.get(
+      ApiPaths.householdMembersByHousehold(householdId),
+    );
+    return ApiJson.listDataFlexible(response)
+        .map((json) => HouseholdMember.fromJson(json))
+        .toList();
+  }
+
+  Future<List<MemberContribution>> _fetchMemberContributions(
+    HttpService httpService,
+    String memberId,
+  ) async {
+    final response =
+        await httpService.get(ApiPaths.memberContributionsByMember(memberId));
+    return ApiJson.listDataFlexible(response)
+        .map((json) => MemberContribution.fromJson(json))
+        .toList();
   }
 
   Future<List<Contribution>> _fetchContributions(
     HttpService httpService,
     String householdId,
   ) async {
-    try {
-      final response = await httpService.get(
-        ApiPaths.contributionsByHousehold(householdId),
-      );
-      final list = ApiJson.listData(response);
-      return list.map((json) => Contribution.fromJson(json)).toList();
-    } catch (e) {
-      return [];
-    }
-  }
-
-  Future<List<MemberContribution>> _fetchMemberContributions(
-    HttpService httpService,
-  ) async {
-    try {
-      final response = await httpService.get(ApiPaths.memberContributionRoot);
-      final list = ApiJson.listData(response);
-      return list.map((json) => MemberContribution.fromJson(json)).toList();
-    } catch (e) {
-      return [];
-    }
+    final response =
+        await httpService.get(ApiPaths.contributionsByHousehold(householdId));
+    return ApiJson.listDataFlexible(response)
+        .map((json) => Contribution.fromJson(json))
+        .toList();
   }
 
   Future<List<Bill>> _fetchBills(
     HttpService httpService,
     String householdId,
   ) async {
-    try {
-      final response = await httpService.get(ApiPaths.billsByHousehold(householdId));
-      final list = ApiJson.listData(response);
-      return list.map((json) => Bill.fromJson(json)).toList();
-    } catch (e) {
-      return [];
-    }
+    final response = await httpService.get(ApiPaths.billsByHousehold(householdId));
+    return ApiJson.listDataFlexible(response)
+        .map((json) => Bill.fromJson(json))
+        .toList();
   }
 
   Future<dynamic> _getStoredUser() async {
@@ -198,7 +228,7 @@ class _MemberContributionsScreenState extends State<MemberContributionsScreen> {
 
       setState(() {
         _currentIncome = double.parse(_incomeController.text);
-        _success = 'Ingreso actualizado correctamente.';
+        _success = context.l10n.incomeUpdatedSuccess;
         _isSavingIncome = false;
       });
     } catch (e) {
@@ -221,10 +251,87 @@ class _MemberContributionsScreenState extends State<MemberContributionsScreen> {
     return value.toString();
   }
 
+  String _contribLabel(MemberContribution contrib) =>
+      MemberContributionUtils.labelFor(
+        contrib,
+        contributionsById: _contributionsById,
+        billsById: _billsById,
+      );
+
+  Future<void> _markAsPaid(MemberContribution contrib) async {
+    final perms = ref.read(appPermissionsProvider);
+    if (!perms.canMarkPaymentFor(contrib.memberId)) return;
+    if (contrib.id.isEmpty || contrib.isPaid) return;
+
+    final l = context.l10n;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l.markPayment),
+        content: Text(
+          l.markAsPaidConfirm(
+            _formatCurrency(contrib.amount),
+            _contribLabel(contrib),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(l.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(l.confirm),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+
+    setState(() => _markingIds.add(contrib.id));
+    try {
+      final api = await MemberContributionApiService.authorized();
+      await api.markAsPaid(memberContributionId: contrib.id);
+      if (!mounted) return;
+      setState(() {
+        _memberContributions = _memberContributions.map((c) {
+          if (c.id != contrib.id) return c;
+          return MemberContribution(
+            id: c.id,
+            memberId: c.memberId,
+            contributionId: c.contributionId,
+            amount: c.amount,
+            status: 1,
+            payedAt: DateTime.now(),
+            createdAt: c.createdAt,
+            updatedAt: DateTime.now(),
+          );
+        }).toList();
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.l10n.paymentRegisteredSuccess)),
+        );
+      }
+    } on MarkPaidEndpointMissingException {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.l10n.paymentsNotSupportedYet)),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString().replaceAll('Exception: ', ''))),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _markingIds.remove(contrib.id));
+    }
+  }
+
   Map<String, double> get _totals {
-    final myContributions = _memberContributions
-        .where((c) => c.memberId == _memberId)
-        .toList();
+    final myContributions = _myContributions;
 
     final assigned = myContributions.fold<double>(
       0,
@@ -244,6 +351,9 @@ class _MemberContributionsScreenState extends State<MemberContributionsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l = context.l10n;
+    final perms = ref.watch(appPermissionsProvider);
+
     return MemberDashboardLayout(
       currentRoute: 'member-contributions',
       child: RefreshIndicator(
@@ -258,7 +368,9 @@ class _MemberContributionsScreenState extends State<MemberContributionsScreen> {
                     child: CircularProgressIndicator(),
                   ),
                 )
-              : _error.isNotEmpty
+              : _needsHousehold
+                  ? MemberNoHouseholdView(onRetry: _loadData)
+                  : _error.isNotEmpty
                   ? SizedBox(
                       height: 500,
                       child: Center(
@@ -273,7 +385,7 @@ class _MemberContributionsScreenState extends State<MemberContributionsScreen> {
                             const SizedBox(height: 12),
                             ElevatedButton(
                               onPressed: _loadData,
-                              child: const Text('Reintentar'),
+                              child: Text(l.retry),
                             ),
                           ],
                         ),
@@ -283,13 +395,9 @@ class _MemberContributionsScreenState extends State<MemberContributionsScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       // Title
-                      const Text(
-                        'Mis aportes',
-                        style: TextStyle(
-                          fontSize: 28,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.navy,
-                        ),
+                      Text(
+                        l.myContributionsTitle,
+                        style: MemberPageStyles.pageTitle(context),
                       ),
                       const SizedBox(height: 20),
 
@@ -301,20 +409,17 @@ class _MemberContributionsScreenState extends State<MemberContributionsScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text(
-                                'Ingreso mensual',
-                                style: TextStyle(
+                              Text(
+                                l.monthlyIncome,
+                                style: const TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
                               const SizedBox(height: 8),
-                              const Text(
-                                'Este dato solo es visible para ti y nos permite estimar metas personalizadas.',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  color: AppColors.labelGray,
-                                ),
+                              Text(
+                                l.incomePrivacyHint,
+                                style: MemberPageStyles.bodyMuted(context),
                               ),
                               const SizedBox(height: 12),
                               Row(
@@ -328,7 +433,7 @@ class _MemberContributionsScreenState extends State<MemberContributionsScreen> {
                                         border: OutlineInputBorder(
                                           borderRadius: BorderRadius.circular(8),
                                         ),
-                                        hintText: 'S/ 0.00',
+                                        hintText: l.currencyHint,
                                       ),
                                     ),
                                   ),
@@ -344,7 +449,7 @@ class _MemberContributionsScreenState extends State<MemberContributionsScreen> {
                                             }
                                           },
                                     icon: const Icon(Icons.save),
-                                    label: const Text('Guardar'),
+                                    label: Text(l.save),
                                   ),
                                 ],
                               ),
@@ -392,9 +497,9 @@ class _MemberContributionsScreenState extends State<MemberContributionsScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text(
-                                'Tus aportes',
-                                style: TextStyle(
+                              Text(
+                                l.yourContributions,
+                                style: const TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
                                 ),
@@ -405,17 +510,17 @@ class _MemberContributionsScreenState extends State<MemberContributionsScreen> {
                                     MainAxisAlignment.spaceBetween,
                                 children: [
                                   _buildPill(
-                                    'Total asignado',
+                                    l.totalAssigned,
                                     _formatCurrency(_totals['assigned'] ?? 0),
                                     Colors.blue,
                                   ),
                                   _buildPill(
-                                    'Pagado',
+                                    l.paid,
                                     _formatCurrency(_totals['paid'] ?? 0),
                                     Colors.green,
                                   ),
                                   _buildPill(
-                                    'Pendiente',
+                                    l.pending,
                                     _formatCurrency(_totals['pending'] ?? 0),
                                     Colors.orange,
                                   ),
@@ -435,35 +540,34 @@ class _MemberContributionsScreenState extends State<MemberContributionsScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text(
-                                'Contribuciones registradas',
-                                style: TextStyle(
+                              Text(
+                                l.registeredContributions,
+                                style: const TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
                               const SizedBox(height: 16),
-                              _memberContributions.isEmpty
-                                  ? const Text(
-                                      'No tienes contribuciones asignadas aún.',
-                                      style: TextStyle(
-                                        color: AppColors.labelGray,
-                                      ),
+                              _myContributions.isEmpty
+                                  ? Text(
+                                      l.noContributionsYet,
+                                      style: MemberPageStyles.bodyMuted(context),
                                     )
                                   : SingleChildScrollView(
                                       scrollDirection: Axis.horizontal,
                                       child: DataTable(
-                                        columns: const [
-                                          DataColumn(label: Text('Gasto')),
-                                          DataColumn(label: Text('Monto')),
-                                          DataColumn(label: Text('Estado')),
+                                        columns: [
+                                          DataColumn(label: Text(l.expense)),
+                                          DataColumn(label: Text(l.amount)),
+                                          DataColumn(label: Text(l.status)),
+                                          DataColumn(label: Text(l.action)),
                                         ],
-                                        rows: _memberContributions
+                                        rows: _myContributions
                                             .map(
                                               (contrib) => DataRow(
                                                 cells: [
                                                   DataCell(
-                                                    Text('Gasto #${contrib.id.substring(0, 8)}'),
+                                                    Text(_contribLabel(contrib)),
                                                   ),
                                                   DataCell(
                                                     Text(_formatCurrency(contrib.amount)),
@@ -483,8 +587,8 @@ class _MemberContributionsScreenState extends State<MemberContributionsScreen> {
                                                       ),
                                                       child: Text(
                                                         contrib.isPaid
-                                                            ? 'Pagado'
-                                                            : 'Pendiente',
+                                                            ? l.paid
+                                                            : l.pending,
                                                         style: TextStyle(
                                                           color: contrib.isPaid
                                                               ? Colors.green.shade700
@@ -492,6 +596,29 @@ class _MemberContributionsScreenState extends State<MemberContributionsScreen> {
                                                         ),
                                                       ),
                                                     ),
+                                                  ),
+                                                  DataCell(
+                                                    contrib.isPaid ||
+                                                            !perms.canMarkPaymentFor(
+                                                              contrib.memberId,
+                                                            )
+                                                        ? const SizedBox.shrink()
+                                                        : _markingIds.contains(contrib.id)
+                                                            ? const SizedBox(
+                                                                width: 24,
+                                                                height: 24,
+                                                                child:
+                                                                    CircularProgressIndicator(
+                                                                  strokeWidth: 2,
+                                                                ),
+                                                              )
+                                                            : TextButton(
+                                                                onPressed: () =>
+                                                                    _markAsPaid(contrib),
+                                                                child: Text(
+                                                                  l.markPayment,
+                                                                ),
+                                                              ),
                                                   ),
                                                 ],
                                               ),

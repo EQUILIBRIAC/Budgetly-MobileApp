@@ -1,4 +1,5 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:budgetly_app/core/config/api_paths.dart';
 import 'package:budgetly_app/core/config/env_config.dart';
@@ -6,7 +7,9 @@ import 'package:budgetly_app/domain/entities/household_entities.dart';
 import 'package:budgetly_app/domain/entities/contribution_entities.dart';
 import 'package:budgetly_app/core/network/http_service.dart';
 import 'package:budgetly_app/core/storage/storage_service.dart';
+import 'package:budgetly_app/features/member/domain/member_contribution_utils.dart';
 import 'package:budgetly_app/features/member/presentation/widgets/member_dashboard_layout.dart';
+import 'package:budgetly_app/features/member/presentation/widgets/member_no_household_view.dart';
 import 'package:budgetly_app/app/theme/app_colors.dart';
 
 class MemberHouseholdStatusScreen extends StatefulWidget {
@@ -21,6 +24,7 @@ class _MemberHouseholdStatusScreenState
     extends State<MemberHouseholdStatusScreen> {
   late HttpService _httpService;
   bool _loading = true;
+  bool _needsHousehold = false;
   String _errorMessage = '';
 
   Map<String, HouseholdStatusPeriod> _datasets = {};
@@ -47,6 +51,7 @@ class _MemberHouseholdStatusScreenState
       setState(() {
         _loading = true;
         _errorMessage = '';
+        _needsHousehold = false;
       });
 
       // Get token from storage and set it on the service
@@ -63,7 +68,12 @@ class _MemberHouseholdStatusScreenState
 
       final householdId = userJson['householdId']?.toString() ?? '';
       if (householdId.isEmpty) {
-        throw Exception('No household found for this user');
+        if (!mounted) return;
+        setState(() {
+          _needsHousehold = true;
+          _loading = false;
+        });
+        return;
       }
 
       final memberRes =
@@ -72,15 +82,18 @@ class _MemberHouseholdStatusScreenState
           await _httpService.get(ApiPaths.billsByHousehold(householdId));
       final contributionsRes =
           await _httpService.get(ApiPaths.contributionsByHousehold(householdId));
-      final memberContribsRes =
-          await _httpService.get(ApiPaths.memberContributionRoot);
       final householdRes =
           await _httpService.get(ApiPaths.houseHold(householdId));
 
       final members = _parseMembers(memberRes);
       final bills = _parseBills(billsRes);
       final contributions = _parseContributions(contributionsRes);
-      final memberContributions = _parseMemberContributions(memberContribsRes);
+      final memberContributions = _dedupeAll(
+        await _fetchHouseholdMemberContributions(
+          members.map((m) => m.id).where((id) => id.isNotEmpty).toList(),
+        ),
+        contributions,
+      );
       final hMap = ApiJson.objectData(householdRes);
       final currency =
           hMap != null ? Household.fromJson(hMap).currency : 'PEN';
@@ -300,26 +313,55 @@ class _MemberHouseholdStatusScreenState
       );
     }
 
-    // For now, just show a snackbar (Flutter doesn't have built-in CSV download)
+    // Copiar CSV al portapapeles
+    Clipboard.setData(ClipboardData(text: csv.toString()));
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('CSV data copied to clipboard')),
+      const SnackBar(content: Text('CSV copiado al portapapeles')),
+    );
+  }
+
+  Future<List<MemberContribution>> _fetchHouseholdMemberContributions(
+    List<String> memberIds,
+  ) async {
+    if (memberIds.isEmpty) return [];
+
+    final results = await Future.wait(
+      memberIds.map((id) async {
+        final res =
+            await _httpService.get(ApiPaths.memberContributionsByMember(id));
+        return _parseMemberContributions(res);
+      }),
+    );
+
+    return results.expand((list) => list).toList();
+  }
+
+  List<MemberContribution> _dedupeAll(
+    List<MemberContribution> items,
+    List<Contribution> contributions,
+  ) {
+    return MemberContributionUtils.dedupeByContribution(
+      items,
+      contributionsById: {for (final c in contributions) c.id: c},
     );
   }
 
   List<HouseholdMember> _parseMembers(Map<String, dynamic> res) {
-    return ApiJson.listData(res).map(HouseholdMember.fromJson).toList();
+    return ApiJson.listDataFlexible(res).map(HouseholdMember.fromJson).toList();
   }
 
   List<Bill> _parseBills(Map<String, dynamic> res) {
-    return ApiJson.listData(res).map(Bill.fromJson).toList();
+    return ApiJson.listDataFlexible(res).map(Bill.fromJson).toList();
   }
 
   List<Contribution> _parseContributions(Map<String, dynamic> res) {
-    return ApiJson.listData(res).map(Contribution.fromJson).toList();
+    return ApiJson.listDataFlexible(res).map(Contribution.fromJson).toList();
   }
 
   List<MemberContribution> _parseMemberContributions(Map<String, dynamic> res) {
-    return ApiJson.listData(res).map(MemberContribution.fromJson).toList();
+    return ApiJson.listDataFlexible(res)
+        .map(MemberContribution.fromJson)
+        .toList();
   }
 
   String _formatCurrency(double amount, String currency) {
@@ -340,7 +382,9 @@ class _MemberHouseholdStatusScreenState
       currentRoute: 'member-household-status',
       child: _loading
           ? const Center(child: CircularProgressIndicator())
-          : _errorMessage.isNotEmpty
+          : _needsHousehold
+              ? MemberNoHouseholdView(onRetry: _loadData)
+              : _errorMessage.isNotEmpty
               ? Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -351,7 +395,7 @@ class _MemberHouseholdStatusScreenState
                       const SizedBox(height: 16),
                       ElevatedButton(
                         onPressed: _loadData,
-                        child: const Text('Retry'),
+                        child: const Text('Reintentar'),
                       ),
                     ],
                   ),

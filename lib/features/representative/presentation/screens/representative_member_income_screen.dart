@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:budgetly_app/app/l10n/app_localizations.dart';
 import 'package:budgetly_app/app/router/app_routes.dart';
 import 'package:budgetly_app/app/theme/app_colors.dart';
 import 'package:budgetly_app/core/network/api_failure.dart';
@@ -63,15 +64,19 @@ class _RepresentativeMemberIncomeScreenState
   }
 
   Future<void> _saveIncome(MemberViewModel member, String currency) async {
+    final l = context.l10n;
     if (member.householdMemberId.isEmpty) {
-      _snack('No se encontró el ID de membresía para guardar.');
+      _snack(l.t(
+        'No se encontró el ID de membresía para guardar.',
+        'Membership ID not found to save.',
+      ));
       return;
     }
 
     final raw = _controllerFor(member).text.trim().replaceAll(',', '.');
     final income = double.tryParse(raw);
     if (income == null || income < 0) {
-      _snack('Ingresa un monto válido (0 o mayor).');
+      _snack(l.t('Ingresa un monto válido (0 o mayor).', 'Enter a valid amount (0 or greater).'));
       return;
     }
 
@@ -87,9 +92,14 @@ class _RepresentativeMemberIncomeScreenState
       scheduleRepresentativeProviderRefresh(ref);
       if (mounted) {
         _snack(
-          'Ingreso de ${member.displayName} guardado '
-          '(${CurrencyUtils.formatSymbol(currency == 'USD')}'
-          '${income.toStringAsFixed(2)}).',
+          l.t(
+            'Ingreso de ${member.displayName} guardado '
+            '(${CurrencyUtils.formatSymbol(currency == 'USD')}'
+            '${income.toStringAsFixed(2)}).',
+            'Income for ${member.displayName} saved '
+            '(${CurrencyUtils.formatSymbol(currency == 'USD')}'
+            '${income.toStringAsFixed(2)}).',
+          ),
         );
       }
     } catch (e) {
@@ -107,6 +117,7 @@ class _RepresentativeMemberIncomeScreenState
 
   @override
   Widget build(BuildContext context) {
+    final l = context.l10n;
     final state = ref.watch(householdMembersProvider);
 
     return RepresentativeDashboardLayout(
@@ -124,6 +135,7 @@ class _RepresentativeMemberIncomeScreenState
           if (data.members.isEmpty) {
             return _EmptyView(
               onGoMembers: () => context.go(AppRoutes.repMembers),
+              l: l,
             );
           }
 
@@ -136,17 +148,21 @@ class _RepresentativeMemberIncomeScreenState
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
               children: [
                 Text(
-                  'Registro de ingresos',
+                  l.t('Registro de ingresos', 'Income registry'),
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                         color: AppColors.navy,
                         fontWeight: FontWeight.w800,
                       ),
                 ),
                 const SizedBox(height: 4),
-                const Text(
-                  'Ingreso mensual de cada persona del hogar. '
-                  'Se guarda en la API y habilita repartos proporcionales.',
-                  style: TextStyle(color: AppColors.textGray, fontSize: 14),
+                Text(
+                  l.t(
+                    'Ingreso mensual de cada persona del hogar. '
+                    'Se guarda en la API y habilita repartos proporcionales.',
+                    'Monthly income for each household member. '
+                    'Saved to the API and enables proportional splits.',
+                  ),
+                  style: const TextStyle(color: AppColors.textGray, fontSize: 14),
                 ),
                 const SizedBox(height: 16),
                 Card(
@@ -168,9 +184,9 @@ class _RepresentativeMemberIncomeScreenState
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text(
-                                'Total ingresos declarados',
-                                style: TextStyle(
+                              Text(
+                                l.t('Total ingresos declarados', 'Total declared income'),
+                                style: const TextStyle(
                                   color: AppColors.labelGray,
                                   fontSize: 12,
                                   fontWeight: FontWeight.w600,
@@ -188,7 +204,7 @@ class _RepresentativeMemberIncomeScreenState
                           ),
                         ),
                         Text(
-                          '${data.members.length} miembros',
+                          l.t('${data.members.length} miembros', '${data.members.length} members'),
                           style: const TextStyle(
                             color: AppColors.dashBlue,
                             fontWeight: FontWeight.w600,
@@ -211,6 +227,7 @@ class _RepresentativeMemberIncomeScreenState
                           : member.userId,
                     ),
                     onSave: () => _saveIncome(member, data.currency),
+                    l: l,
                   ),
               ],
             ),
@@ -228,6 +245,7 @@ class _MemberIncomeCard extends StatelessWidget {
     required this.controller,
     required this.isSaving,
     required this.onSave,
+    required this.l,
   });
 
   final MemberViewModel member;
@@ -235,6 +253,7 @@ class _MemberIncomeCard extends StatelessWidget {
   final TextEditingController controller;
   final bool isSaving;
   final VoidCallback onSave;
+  final AppLocalizations l;
 
   @override
   Widget build(BuildContext context) {
@@ -318,7 +337,7 @@ class _MemberIncomeCard extends StatelessWidget {
               keyboardType:
                   const TextInputType.numberWithOptions(decimal: true),
               decoration: InputDecoration(
-                labelText: 'Ingreso mensual',
+                labelText: l.monthlyIncome,
                 prefixText: sym,
                 hintText: '0.00',
                 border: OutlineInputBorder(
@@ -345,7 +364,7 @@ class _MemberIncomeCard extends StatelessWidget {
                         ),
                       )
                     : const Icon(Icons.save_outlined, size: 20),
-                label: Text(isSaving ? 'Guardando…' : 'Guardar ingreso'),
+                label: Text(isSaving ? l.t('Guardando…', 'Saving…') : l.t('Guardar ingreso', 'Save income')),
               ),
             ),
           ],
@@ -409,7 +428,7 @@ class _ErrorView extends StatelessWidget {
               ),
               onPressed: onRetry,
               icon: const Icon(Icons.refresh),
-              label: const Text('Reintentar'),
+              label: Text(context.l10n.retry),
             ),
           ],
         ),
@@ -419,9 +438,10 @@ class _ErrorView extends StatelessWidget {
 }
 
 class _EmptyView extends StatelessWidget {
-  const _EmptyView({required this.onGoMembers});
+  const _EmptyView({required this.onGoMembers, required this.l});
 
   final VoidCallback onGoMembers;
+  final AppLocalizations l;
 
   @override
   Widget build(BuildContext context) {
@@ -437,8 +457,8 @@ class _EmptyView extends StatelessWidget {
               color: AppColors.labelGray,
             ),
             const SizedBox(height: 16),
-            const Text(
-              'No hay miembros en este hogar',
+            Text(
+              l.t('No hay miembros en este hogar', 'No members in this household'),
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: AppColors.navy,
@@ -447,10 +467,13 @@ class _EmptyView extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
-            const Text(
-              'Invita personas desde «Miembros» para registrar sus ingresos.',
+            Text(
+              l.t(
+                'Invita personas desde «Miembros» para registrar sus ingresos.',
+                'Invite people from «Members» to register their incomes.',
+              ),
               textAlign: TextAlign.center,
-              style: TextStyle(color: AppColors.textGray, height: 1.45),
+              style: const TextStyle(color: AppColors.textGray, height: 1.45),
             ),
             const SizedBox(height: 20),
             FilledButton.icon(
@@ -460,7 +483,7 @@ class _EmptyView extends StatelessWidget {
               ),
               onPressed: onGoMembers,
               icon: const Icon(Icons.person_add_alt_1),
-              label: const Text('Ir a Miembros'),
+              label: Text(l.t('Ir a Miembros', 'Go to Members')),
             ),
           ],
         ),

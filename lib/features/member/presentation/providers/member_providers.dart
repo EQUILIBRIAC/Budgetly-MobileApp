@@ -1,4 +1,4 @@
-﻿import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:budgetly_app/core/config/api_paths.dart';
 import 'package:budgetly_app/core/config/env_config.dart';
@@ -55,10 +55,29 @@ final memberDashboardProvider = FutureProvider<({
 final memberContributionsProvider = FutureProvider<List<MemberContribution>>((
   ref,
 ) async {
+  final user = await ref.watch(currentUserProvider.future);
+  final householdId = user['householdId']?.toString() ?? '';
+  if (householdId.isEmpty) return <MemberContribution>[];
+
   final http = await _authorizedHttp();
-  final response = await http.get(ApiPaths.memberContributionRoot);
-  final data = ApiJson.listData(response);
-  return data.map(MemberContribution.fromJson).toList();
+  final membersResp =
+      await http.get(ApiPaths.householdMembersByHousehold(householdId));
+  final members = ApiJson.listDataFlexible(membersResp)
+      .map(HouseholdMember.fromJson)
+      .toList();
+
+  final userId = user['id']?.toString() ?? '';
+  final member = members.cast<HouseholdMember?>().firstWhere(
+        (m) => m!.userId == userId,
+        orElse: () => null,
+      );
+  if (member == null || member.id.isEmpty) return <MemberContribution>[];
+
+  final response =
+      await http.get(ApiPaths.memberContributionsByMember(member.id));
+  return ApiJson.listDataFlexible(response)
+      .map(MemberContribution.fromJson)
+      .toList();
 });
 
 final householdStatusProvider = FutureProvider<({

@@ -5,11 +5,12 @@ import '../../../../core/auth/session_revoker.dart';
 import '../../../../core/config/env_config.dart';
 import '../../../../core/network/http_service.dart';
 import '../../../../core/storage/jwt_token_locator.dart';
+import '../../../../core/storage/storage_service.dart';
+import '../../../../domain/entities/auth_session.dart';
 import '../../../../domain/entities/user.dart';
 import '../../data/datasources/auth_local_data_source.dart';
 import '../../data/datasources/auth_remote_data_source.dart';
 import '../../data/repositories/auth_repository_impl.dart';
-import '../../domain/repositories/auth_repository.dart';
 
 final httpClientProvider = Provider<HttpService>((_) {
   return HttpService(baseUrl: EnvConfig.apiBaseUrl);
@@ -23,7 +24,7 @@ final authLocalDataSourceProvider = Provider<SessionLocalContract>((_) {
   return AuthLocalDataSource();
 });
 
-final authRepositoryProvider = Provider<AuthRepository>((ref) {
+final authRepositoryProvider = Provider<AuthRepositoryImpl>((ref) {
   return AuthRepositoryImpl(
     remoteDataSource: ref.watch(authRemoteDataSourceProvider),
     localDataSource: ref.watch(authLocalDataSourceProvider),
@@ -34,39 +35,51 @@ enum AuthStatus { loading, authenticated, unauthenticated }
 
 class AuthController extends ChangeNotifier {
   AuthController({
-    required AuthRepository repository,
+    required AuthRepositoryImpl repository,
     required HttpService httpClient,
   })  : _repository = repository,
         _httpClient = httpClient {
     _bootstrap();
   }
 
-  final AuthRepository _repository;
+  final AuthRepositoryImpl _repository;
   final HttpService _httpClient;
 
   AuthStatus _status = AuthStatus.loading;
-  User? _currentUser;
+  AuthSession? _session;
 
   AuthStatus get status => _status;
-  User? get currentUser => _currentUser;
+  AuthSession? get session => _session;
+  User? get currentUser => _session == null ? null : _userFromSession(_session!);
   bool get isAuthenticated => _status == AuthStatus.authenticated;
-  String get role => _currentUser?.role.toLowerCase() ?? '';
+  String get role => _session?.roleNormalized ?? '';
+
+  User _userFromSession(AuthSession s) => User(
+        id: s.userId,
+        email: s.email,
+        role: s.role,
+        householdId: s.householdId,
+        isNewUser: s.isNewUser,
+        plan: s.plan,
+      );
 
   Future<void> _bootstrap() async {
     try {
       final user = await _repository.restorePersistedSession();
       if (user == null) {
         _status = AuthStatus.unauthenticated;
+        _session = null;
       } else {
         final token = await JwtTokenLocator.instance.read();
         if (token != null && token.isNotEmpty) {
           _httpClient.setToken(token);
         }
-        _currentUser = user;
+        _session = _repository.lastSession;
         _status = AuthStatus.authenticated;
       }
     } catch (_) {
       _status = AuthStatus.unauthenticated;
+      _session = null;
     }
     notifyListeners();
   }
@@ -76,16 +89,43 @@ class AuthController extends ChangeNotifier {
     required String password,
   }) async {
     final user = await _repository.signIn(email: email, password: password);
-    _currentUser = user;
+    _session = _repository.lastSession;
+    final token = await JwtTokenLocator.instance.read();
+    if (token != null && token.isNotEmpty) {
+      _httpClient.setToken(token);
+    }
     _status = AuthStatus.authenticated;
     notifyListeners();
     return user;
   }
 
+  Future<void> refreshSessionFromStorage() async {
+    final json = await StorageService.getUser();
+    final token = await StorageService.getToken();
+    if (json == null || token == null) return;
+    final map = Map<String, dynamic>.from(json);
+    map['token'] = token;
+    _session = AuthSession.fromStoredJson(map);
+    notifyListeners();
+  }
+
+  Future<void> updateMemberHousehold({
+    required String householdId,
+    required String householdMemberId,
+  }) async {
+    if (_session == null) return;
+    _session = _session!.copyWith(
+      householdId: householdId,
+      householdMemberId: householdMemberId,
+    );
+    await _repository.updateStoredSession(_session!);
+    notifyListeners();
+  }
+
   Future<void> signOut() async {
     await _repository.signOut();
     _httpClient.clearToken();
-    _currentUser = null;
+    _session = null;
     _status = AuthStatus.unauthenticated;
     notifyListeners();
   }

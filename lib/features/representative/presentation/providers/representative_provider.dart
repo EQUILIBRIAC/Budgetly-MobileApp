@@ -1,7 +1,9 @@
-﻿import 'package:flutter/widgets.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:budgetly_app/core/auth/app_permissions.dart';
 import 'package:budgetly_app/core/config/api_paths.dart';
+import 'package:budgetly_app/features/representative/data/invitations_api.dart';
 import 'package:budgetly_app/core/config/env_config.dart';
 import 'package:budgetly_app/domain/entities/contribution_entities.dart';
 import 'package:budgetly_app/domain/entities/household_entities.dart';
@@ -68,8 +70,14 @@ final representativeProvider = FutureProvider<RepresentativeData>((ref) async {
   }
 
   if (householdId.isEmpty) {
-    throw Exception(
-      'No hay hogar para mostrar. Crea uno en «Hogares» o completa tu perfil.',
+    return const RepresentativeData(
+      household: null,
+      ownedHouseholds: [],
+      activeHouseholdId: '',
+      members: [],
+      bills: [],
+      contributions: [],
+      currency: 'PEN',
     );
   }
 
@@ -130,11 +138,24 @@ class RepresentativeActions {
     required String name,
     String description = '',
     int currencyCode = 1,
+    required int ownedHouseholdCount,
+    required bool isPremiumPlan,
   }) async {
+    final perms = AppPermissions('representative');
+    if (!perms.canCreateAnotherHousehold(
+      ownedHouseholdCount: ownedHouseholdCount,
+      isPremiumPlan: isPremiumPlan,
+    )) {
+      throw Exception(
+        isPremiumPlan
+            ? 'No puedes crear más hogares.'
+            : 'Plan Free: solo puedes tener 1 hogar. Actualiza a Premium para más.',
+      );
+    }
     final http = await _authorizedHttp();
     final user = await StorageService.getUser();
     final repId = int.tryParse(user?['id']?.toString() ?? '') ?? 0;
-    await http.post(
+    final response = await http.post(
       ApiPaths.houseHoldRoot,
       body: {
         'id': null,
@@ -148,6 +169,13 @@ class RepresentativeActions {
         'updatedAt': null,
       },
     );
+    final created = ApiJson.objectData(response) ?? response;
+    final newId = created['id']?.toString().trim() ?? '';
+    if (newId.isNotEmpty && user != null) {
+      final updated = Map<String, dynamic>.from(user);
+      updated['householdId'] = newId;
+      await StorageService.saveUser(updated);
+    }
   }
 
   Future<void> createBill({
@@ -177,7 +205,18 @@ class RepresentativeActions {
     required String userId,
     String role = 'member',
     double? income,
+    required int currentMemberCount,
+    required bool isPremiumPlan,
   }) async {
+    final perms = AppPermissions('representative');
+    if (!perms.canAddAnotherMember(
+      currentMemberCount: currentMemberCount,
+      isPremiumPlan: isPremiumPlan,
+    )) {
+      throw Exception(
+        'Plan Free: máximo 3 miembros por hogar. Actualiza a Premium para más.',
+      );
+    }
     final http = await _authorizedHttp();
     final uid = int.tryParse(userId.trim());
     if (uid == null) {
@@ -366,6 +405,35 @@ class RepresentativeActions {
   Future<void> deleteHouseholdMember(String membershipId) async {
     final http = await _authorizedHttp();
     await http.delete(ApiPaths.householdMemberById(membershipId));
+  }
+
+  Future<Map<String, dynamic>> sendInvitation({
+    required String email,
+    required String householdId,
+    String description = '',
+  }) async {
+    final api = InvitationsApi(await _authorizedHttp());
+    return api.create(
+      email: email,
+      householdId: householdId,
+      description: description,
+    );
+  }
+
+  Future<void> promoteMember(String householdMemberId) async {
+    final http = await _authorizedHttp();
+    await http.put(
+      ApiPaths.householdMemberPromote(householdMemberId),
+      body: {},
+    );
+  }
+
+  Future<void> demoteMember(String householdMemberId) async {
+    final http = await _authorizedHttp();
+    await http.put(
+      ApiPaths.householdMemberDemote(householdMemberId),
+      body: {},
+    );
   }
 
   Future<void> deleteAccountByEmail(String email) async {

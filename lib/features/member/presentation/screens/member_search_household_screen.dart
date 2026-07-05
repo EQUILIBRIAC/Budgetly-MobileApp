@@ -1,24 +1,27 @@
 ﻿import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:budgetly_app/app/l10n/app_localizations.dart';
 import 'package:budgetly_app/app/router/app_routes.dart';
+import 'package:budgetly_app/core/auth/session_resolver.dart';
 import 'package:budgetly_app/core/config/api_paths.dart';
 import 'package:budgetly_app/core/config/env_config.dart';
 import 'package:budgetly_app/core/network/http_service.dart';
 import 'package:budgetly_app/core/storage/storage_service.dart';
 import 'package:budgetly_app/domain/entities/household_entities.dart';
-import 'package:budgetly_app/features/member/presentation/widgets/member_dashboard_layout.dart';
+import 'package:budgetly_app/features/auth/presentation/providers/auth_providers.dart';
 import 'package:budgetly_app/app/theme/app_colors.dart';
 
-class MemberSearchHouseholdScreen extends StatefulWidget {
+class MemberSearchHouseholdScreen extends ConsumerStatefulWidget {
   const MemberSearchHouseholdScreen({super.key});
 
   @override
-  State<MemberSearchHouseholdScreen> createState() =>
+  ConsumerState<MemberSearchHouseholdScreen> createState() =>
       _MemberSearchHouseholdScreenState();
 }
 
 class _MemberSearchHouseholdScreenState
-    extends State<MemberSearchHouseholdScreen> {
+    extends ConsumerState<MemberSearchHouseholdScreen> {
   late final TextEditingController _codeController;
   Household? _foundHousehold;
   String _message = '';
@@ -39,6 +42,7 @@ class _MemberSearchHouseholdScreenState
   }
 
   Future<void> _onSearch() async {
+    final l = context.l10n;
     setState(() {
       _message = '';
       _foundHousehold = null;
@@ -47,7 +51,7 @@ class _MemberSearchHouseholdScreenState
     final q = _codeController.text.trim();
     if (q.isEmpty) {
       setState(() {
-        _message = 'Ingresa un ID de hogar.';
+        _message = l.t('Ingresa un ID de hogar.', 'Enter a household ID.');
         _messageSeverity = 'warn';
       });
       return;
@@ -66,7 +70,7 @@ class _MemberSearchHouseholdScreenState
       final raw = ApiJson.objectData(response);
       if (raw == null) {
         setState(() {
-          _message = 'No se encontró un hogar con ese ID.';
+          _message = l.t('No se encontró un hogar con ese ID.', 'No household found with that ID.');
           _messageSeverity = 'warn';
         });
       } else {
@@ -88,11 +92,12 @@ class _MemberSearchHouseholdScreenState
 
   Future<void> _onJoin() async {
     if (_foundHousehold == null) return;
+    final l = context.l10n;
 
     final user = await StorageService.getUser();
     if (user == null) {
       setState(() {
-        _message = 'Inicia sesión para unirte a un hogar.';
+        _message = l.t('Inicia sesión para unirte a un hogar.', 'Sign in to join a household.');
         _messageSeverity = 'warn';
       });
       return;
@@ -101,7 +106,7 @@ class _MemberSearchHouseholdScreenState
     final userId = _toString(user['id']);
     if (userId == null || userId.isEmpty) {
       setState(() {
-        _message = 'Usuario no válido.';
+        _message = l.t('Usuario no válido.', 'Invalid user.');
         _messageSeverity = 'error';
       });
       return;
@@ -110,7 +115,7 @@ class _MemberSearchHouseholdScreenState
     final currentHouseholdId = _toString(user['householdId']);
     if (currentHouseholdId == _foundHousehold!.id) {
       setState(() {
-        _message = 'Ya perteneces a este hogar.';
+        _message = l.t('Ya perteneces a este hogar.', 'You already belong to this household.');
         _messageSeverity = 'info';
       });
       return;
@@ -128,7 +133,7 @@ class _MemberSearchHouseholdScreenState
       final uid = int.tryParse(userId);
       if (uid == null) {
         setState(() {
-          _message = 'El ID de usuario debe ser numérico para la API.';
+          _message = l.t('El ID de usuario debe ser numérico para la API.', 'User ID must be numeric for the API.');
           _messageSeverity = 'error';
         });
         return;
@@ -144,12 +149,24 @@ class _MemberSearchHouseholdScreenState
         },
       );
 
-      // Update user in storage
+      final memberId = await SessionResolver.resolveHouseholdMemberId(
+            http: httpService,
+            userId: userId,
+            householdId: _foundHousehold!.id,
+          ) ??
+          '';
+
       user['householdId'] = _foundHousehold!.id;
+      user['householdMemberId'] = memberId;
       await StorageService.saveUser(user);
 
+      await ref.read(authControllerProvider).updateMemberHousehold(
+            householdId: _foundHousehold!.id,
+            householdMemberId: memberId,
+          );
+
       setState(() {
-        _message = 'Te uniste al hogar correctamente.';
+        _message = l.t('Te uniste al hogar correctamente.', 'You joined the household successfully.');
         _messageSeverity = 'success';
       });
 
@@ -193,17 +210,31 @@ class _MemberSearchHouseholdScreenState
 
   @override
   Widget build(BuildContext context) {
-    return MemberDashboardLayout(
-      currentRoute: 'member-search-household',
-      child: Scaffold(
-        backgroundColor: AppColors.lightGray,
-        body: Center(
+    final l = context.l10n;
+    return Scaffold(
+      backgroundColor: AppColors.lightGray,
+      appBar: AppBar(
+        backgroundColor: AppColors.white,
+        foregroundColor: AppColors.navy,
+        elevation: 0,
+        title: Text(l.t('Unirse a un hogar', 'Join a household')),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              await ref.read(authControllerProvider).signOut();
+              if (context.mounted) context.go(AppRoutes.login);
+            },
+            child: Text(l.logout),
+          ),
+        ],
+      ),
+      body: SafeArea(
+        child: Center(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(16),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // Card
                 Container(
                   width: double.infinity,
                   constraints: const BoxConstraints(maxWidth: 480),
@@ -223,20 +254,20 @@ class _MemberSearchHouseholdScreenState
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      // Title
-                      const Text(
-                        'Unirse a un hogar',
-                        style: TextStyle(
+                      Text(
+                        l.t('Unirse a un hogar', 'Join a household'),
+                        style: const TextStyle(
                           fontSize: 28,
                           fontWeight: FontWeight.bold,
                           color: AppColors.navy,
                         ),
                       ),
                       const SizedBox(height: 20),
-
-                      // Description
-                      const Text(
-                        'Ingresa el ID proporcionado por tu representante para unirte a tu hogar.',
+                      Text(
+                        l.t(
+                          'Ingresa el ID proporcionado por tu representante para unirte a tu hogar.',
+                          'Enter the ID from your representative to join your household.',
+                        ),
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: 16,
@@ -245,15 +276,13 @@ class _MemberSearchHouseholdScreenState
                         ),
                       ),
                       const SizedBox(height: 30),
-
-                      // Input + Search Button
                       Row(
                         children: [
                           Expanded(
                             child: TextField(
                               controller: _codeController,
                               decoration: InputDecoration(
-                                hintText: 'Ej: HH1728345678901',
+                                hintText: l.t('Ej: HH1728345678901', 'E.g. HH1728345678901'),
                                 hintStyle:
                                     const TextStyle(color: AppColors.placeholder),
                                 contentPadding: const EdgeInsets.symmetric(
@@ -291,8 +320,7 @@ class _MemberSearchHouseholdScreenState
                               onPressed: _isSearching ? null : _onSearch,
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: AppColors.teal,
-                                disabledBackgroundColor:
-                                    AppColors.placeholder,
+                                disabledBackgroundColor: AppColors.placeholder,
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(8),
                                 ),
@@ -316,8 +344,6 @@ class _MemberSearchHouseholdScreenState
                         ],
                       ),
                       const SizedBox(height: 16),
-
-                      // Message
                       if (_message.isNotEmpty)
                         Container(
                           width: double.infinity,
@@ -329,8 +355,7 @@ class _MemberSearchHouseholdScreenState
                             color: _getMessageColor().withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(8),
                             border: Border.all(
-                              color:
-                                  _getMessageColor().withValues(alpha: 0.3),
+                              color: _getMessageColor().withValues(alpha: 0.3),
                             ),
                           ),
                           child: Text(
@@ -344,26 +369,23 @@ class _MemberSearchHouseholdScreenState
                           ),
                         ),
                       const SizedBox(height: 24),
-
-                      // Household found info
                       if (_foundHousehold != null)
                         Container(
                           width: double.infinity,
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
-color: AppColors.mint.withValues(alpha: 0.35),
+                            color: AppColors.mint.withValues(alpha: 0.35),
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
-                              color:
-                                  AppColors.teal.withValues(alpha: 0.2),
+                              color: AppColors.teal.withValues(alpha: 0.2),
                             ),
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text(
-                                'Hogar encontrado:',
-                                style: TextStyle(
+                              Text(
+                                l.t('Hogar encontrado:', 'Household found:'),
+                                style: const TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.bold,
                                   color: AppColors.teal,
@@ -392,15 +414,12 @@ color: AppColors.mint.withValues(alpha: 0.35),
                           ),
                         ),
                       const SizedBox(height: 24),
-
-                      // Join Button
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
-                          onPressed:
-                              _foundHousehold == null || _isJoining
-                                  ? null
-                                  : _onJoin,
+                          onPressed: _foundHousehold == null || _isJoining
+                              ? null
+                              : _onJoin,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColors.teal,
                             disabledBackgroundColor: AppColors.placeholder,
@@ -420,9 +439,9 @@ color: AppColors.mint.withValues(alpha: 0.35),
                                     ),
                                   ),
                                 )
-                              : const Text(
-                                  'Unirme al hogar',
-                                  style: TextStyle(
+                              : Text(
+                                  l.t('Unirme al hogar', 'Join household'),
+                                  style: const TextStyle(
                                     fontSize: 16,
                                     fontWeight: FontWeight.bold,
                                     color: Colors.white,
@@ -431,10 +450,11 @@ color: AppColors.mint.withValues(alpha: 0.35),
                         ),
                       ),
                       const SizedBox(height: 20),
-
-                      // Note
                       Text(
-                        'Recuerda que este proceso es opcional. También puedes esperar a que tu representante te agregue manualmente.',
+                        l.t(
+                          'Recuerda que este proceso es opcional. También puedes esperar a que tu representante te agregue manualmente.',
+                          'This step is optional. You can also wait for your representative to add you manually.',
+                        ),
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: 13,

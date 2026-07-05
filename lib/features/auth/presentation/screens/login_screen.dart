@@ -1,9 +1,11 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:budgetly_app/core/auth/role_navigation.dart';
+import 'package:budgetly_app/app/widgets/budgetly_logo.dart';
 import 'package:budgetly_app/features/auth/presentation/providers/auth_providers.dart';
 import 'package:budgetly_app/app/router/app_routes.dart';
-import 'package:budgetly_app/app/l10n/app_strings.dart';
+import 'package:budgetly_app/app/l10n/app_localizations.dart';
 import 'package:budgetly_app/core/network/api_failure.dart';
 import 'package:budgetly_app/app/theme/app_colors.dart';
 
@@ -44,9 +46,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       _error = '';
     });
 
+    final l = context.l10n;
     if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
       setState(() {
-        _error = AppStrings.loginEmptyCredentials;
+        _error = l.loginEmptyCredentials;
       });
       return;
     }
@@ -56,16 +59,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     });
 
     try {
-      final user = await ref.read(authControllerProvider).signIn(
+      await ref.read(authControllerProvider).signIn(
         email: _emailController.text,
         password: _passwordController.text,
       );
 
       if (mounted) {
-        final role = user.role.toLowerCase();
-        final target = role == 'member'
-            ? AppRoutes.memberDashboard
-            : AppRoutes.repDashboard;
+        final session = ref.read(authControllerProvider).session;
+        final target = session != null
+            ? RoleNavigation.homeFor(session)
+            : AppRoutes.login;
         context.go(target);
       }
     } on ApiFailure catch (e) {
@@ -84,19 +87,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   void _handleGoogleSignIn() {
+    final l = context.l10n;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Google Sign-In estará disponible pronto')),
+      SnackBar(content: Text(l.t('Google Sign-In estará disponible pronto', 'Google Sign-In coming soon'))),
     );
   }
 
   void _handleGithubSignIn() {
+    final l = context.l10n;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('GitHub Sign-In estará disponible pronto')),
+      SnackBar(content: Text(l.t('GitHub Sign-In estará disponible pronto', 'GitHub Sign-In coming soon'))),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final l = context.l10n;
     final isMobile = MediaQuery.of(context).size.width < 600;
 
     return Scaffold(
@@ -111,41 +117,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Logo
-                    Row(
-                      children: [
-                        Container(
-                          width: 38,
-                          height: 38,
-                          decoration: BoxDecoration(
-                            color: AppColors.teal,
-                            borderRadius: BorderRadius.circular(9),
-                          ),
-                          alignment: Alignment.center,
-                          child: const Icon(
-                            Icons.account_balance_wallet_outlined,
-                            color: AppColors.white,
-                            size: 22,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        const Text(
-                          AppStrings.appName,
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w500,
-                            color: AppColors.navy,
-                            letterSpacing: -0.5,
-                          ),
-                        ),
-                      ],
-                    ),
+                    const BudgetlyLogo(size: 40, showWordmark: true),
                     const SizedBox(height: 36),
-
-                    // Title
-                    const Text(
-                      AppStrings.loginTitle,
-                      style: TextStyle(
+                    Text(
+                      l.loginTitle,
+                      style: const TextStyle(
                         fontSize: 30,
                         fontWeight: FontWeight.w700,
                         color: AppColors.navy,
@@ -153,17 +129,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    const Text(
-                      'Sign in to access your dashboard and continue managing your household.',
-                      style: TextStyle(
+                    Text(
+                      l.t(
+                        'Inicia sesión para acceder a tu panel y seguir gestionando tu hogar.',
+                        'Sign in to access your dashboard and continue managing your household.',
+                      ),
+                      style: const TextStyle(
                         fontSize: 14,
                         color: AppColors.labelGray,
                         height: 1.65,
                       ),
                     ),
                     const SizedBox(height: 24),
-
-                    // Error message
                     if (_error.isNotEmpty) ...[
                       Container(
                         padding: const EdgeInsets.all(12),
@@ -190,16 +167,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       ),
                       const SizedBox(height: 16),
                     ],
-
-                    // Email field
-                    _buildLabel('Email'),
+                    _buildLabel(l.t('Correo', 'Email')),
                     const SizedBox(height: 6),
                     TextField(
                       controller: _emailController,
                       keyboardType: TextInputType.emailAddress,
                       autofillHints: const [AutofillHints.email],
                       decoration: InputDecoration(
-                        hintText: 'Enter your email',
+                        hintText: l.t('Ingresa tu correo', 'Enter your email'),
                         prefixIcon: const Icon(
                           Icons.email_outlined,
                           color: AppColors.sky,
@@ -235,16 +210,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       ),
                     ),
                     const SizedBox(height: 16),
-
-                    // Password field
-                    _buildLabel('Password'),
+                    _buildLabel(l.t('Contraseña', 'Password')),
                     const SizedBox(height: 6),
                     TextField(
                       controller: _passwordController,
                       obscureText: !_showPassword,
                       autofillHints: const [AutofillHints.password],
                       decoration: InputDecoration(
-                        hintText: 'Enter your password',
+                        hintText: l.t('Ingresa tu contraseña', 'Enter your password'),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(9),
                           borderSide: const BorderSide(
@@ -289,8 +262,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       ),
                     ),
                     const SizedBox(height: 16),
-
-                    // Remember & Forgot
                     Row(
                       children: [
                         Expanded(
@@ -329,7 +300,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                 ),
                                 Flexible(
                                   child: Text(
-                                    'Remember me',
+                                    l.t('Recordarme', 'Remember me'),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(
@@ -347,7 +318,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             context.go(AppRoutes.forgotPassword);
                           },
                           child: Text(
-                            AppStrings.loginForgotPassword,
+                            l.loginForgotPassword,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             textAlign: TextAlign.end,
@@ -361,8 +332,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       ],
                     ),
                     const SizedBox(height: 21),
-
-                    // Sign In Button
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
@@ -387,9 +356,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                   strokeWidth: 2,
                                 ),
                               )
-                            : const Text(
-                                AppStrings.loginSignIn,
-                                style: TextStyle(
+                            : Text(
+                                l.loginSignIn,
+                                style: const TextStyle(
                                   fontSize: 15,
                                   fontWeight: FontWeight.w600,
                                   color: AppColors.cream,
@@ -399,8 +368,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       ),
                     ),
                     const SizedBox(height: 18),
-
-                    // Divider
                     Row(
                       children: [
                         Expanded(
@@ -412,7 +379,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 12),
                           child: Text(
-                            'OR',
+                            l.t('O', 'OR'),
                             style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w700,
@@ -430,24 +397,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       ],
                     ),
                     const SizedBox(height: 18),
-
-                    // Google Button
                     _buildSocialButton(
-                      label: 'Continue with Google',
+                      label: l.t('Continuar con Google', 'Continue with Google'),
                       onPressed: _handleGoogleSignIn,
                       icon: Icons.g_mobiledata,
                     ),
                     const SizedBox(height: 9),
-
-                    // GitHub Button
                     _buildSocialButton(
-                      label: 'Continue with GitHub',
+                      label: l.t('Continuar con GitHub', 'Continue with GitHub'),
                       onPressed: _handleGithubSignIn,
                       icon: Icons.code,
                     ),
                     const SizedBox(height: 21),
-
-                    // Footer
                     Center(
                       child: RichText(
                         text: TextSpan(
@@ -456,15 +417,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             color: AppColors.labelGray,
                           ),
                           children: [
-                            const TextSpan(text: 'Don\'t have an Account? '),
+                            TextSpan(
+                              text: l.t('¿No tienes cuenta? ', "Don't have an account? "),
+                            ),
                             WidgetSpan(
                               child: GestureDetector(
                                 onTap: () {
                                   context.go(AppRoutes.signup);
                                 },
-                                child: const Text(
-                                  'Sign Up',
-                                  style: TextStyle(
+                                child: Text(
+                                  l.t('Regístrate', 'Sign Up'),
+                                  style: const TextStyle(
                                     fontWeight: FontWeight.w700,
                                     color: AppColors.teal,
                                   ),
@@ -535,4 +498,3 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     );
   }
 }
-

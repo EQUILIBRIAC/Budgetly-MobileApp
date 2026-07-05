@@ -57,10 +57,16 @@ class HouseholdMemberApi {
     return HouseholdMemberDto.fromJson(parsed);
   }
 
+  Future<void> promoteRepresentative(String householdMemberId) async {
+    await _http.put(ApiPaths.householdMemberPromote(householdMemberId), body: {});
+  }
+
+  Future<void> demoteRepresentative(String householdMemberId) async {
+    await _http.put(ApiPaths.householdMemberDemote(householdMemberId), body: {});
+  }
+
   /// Combina `/detailed` + `/household/{id}` por `userId`.
   Future<List<MemberViewModel>> getMergedMembers(String householdId) async {
-    await MemberDisplayNameStore.seedDevSignupNamesIfMissing();
-
     final detailed = await getDetailedMembers(householdId);
     final members = await getMembersWithIncome(householdId);
 

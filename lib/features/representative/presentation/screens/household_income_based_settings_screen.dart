@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:budgetly_app/app/l10n/app_localizations.dart';
 import 'package:budgetly_app/app/router/app_routes.dart';
 import 'package:budgetly_app/app/theme/app_colors.dart';
 import 'package:budgetly_app/core/network/api_failure.dart';
@@ -22,10 +23,14 @@ class _HouseholdIncomeBasedSettingsScreenState
   bool _saving = false;
 
   Future<void> _save(HouseholdSettingsData data) async {
+    final l = context.l10n;
     final enabled = _incomeBasedEnabled ?? data.incomeBasedEnabled;
 
     if (enabled && data.totalIncome <= 0) {
-      _showSnack('Registra ingresos antes de activar IncomeBased');
+      _showSnack(l.t(
+        'Registra ingresos antes de activar IncomeBased',
+        'Register incomes before enabling IncomeBased',
+      ));
       return;
     }
 
@@ -36,7 +41,7 @@ class _HouseholdIncomeBasedSettingsScreenState
             enabled: enabled,
           );
       if (!mounted) return;
-      _showSnack('Configuración guardada.');
+      _showSnack(l.settingsSaved);
     } catch (e) {
       if (!mounted) return;
       _showSnack(ApiFailure.wrap(e).messageEs);
@@ -51,6 +56,7 @@ class _HouseholdIncomeBasedSettingsScreenState
 
   @override
   Widget build(BuildContext context) {
+    final l = context.l10n;
     final settingsAsync = ref.watch(householdSettingsProvider);
 
     return RepresentativeDashboardLayout(
@@ -73,17 +79,16 @@ class _HouseholdIncomeBasedSettingsScreenState
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
-                  'Reparto por ingreso',
+                  l.incomeSplitSettings,
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                         color: AppColors.navy,
                         fontWeight: FontWeight.w800,
                       ),
                 ),
                 const SizedBox(height: 6),
-                const Text(
-                  'Activa IncomeBased para repartir cada factura de forma '
-                  'proporcional al ingreso mensual de cada miembro.',
-                  style: TextStyle(color: AppColors.textGray, height: 1.35),
+                Text(
+                  l.incomeSplitSettingsSubtitle,
+                  style: const TextStyle(color: AppColors.textGray, height: 1.35),
                 ),
                 const SizedBox(height: 16),
                 Card(
@@ -94,14 +99,23 @@ class _HouseholdIncomeBasedSettingsScreenState
                     side: const BorderSide(color: AppColors.borderGray),
                   ),
                   child: SwitchListTile(
-                    title: const Text(
-                      'Reparto proporcional por ingreso (IncomeBased)',
-                      style: TextStyle(fontWeight: FontWeight.w600),
+                    title: Text(
+                      l.t(
+                        'Reparto proporcional por ingreso (IncomeBased)',
+                        'Proportional income split (IncomeBased)',
+                      ),
+                      style: const TextStyle(fontWeight: FontWeight.w600),
                     ),
                     subtitle: Text(
                       enabled
-                          ? 'Las facturas se repartirán según el % de ingreso.'
-                          : 'Reparto igualitario (Even) entre miembros activos.',
+                          ? l.t(
+                              'Las facturas se repartirán según el % de ingreso.',
+                              'Bills will be split by income percentage.',
+                            )
+                          : l.t(
+                              'Reparto igualitario (Even) entre miembros activos.',
+                              'Equal split (Even) among active members.',
+                            ),
                     ),
                     value: enabled,
                     activeThumbColor: AppColors.dashGreen,
@@ -112,7 +126,7 @@ class _HouseholdIncomeBasedSettingsScreenState
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'Resumen de miembros',
+                  l.t('Resumen de miembros', 'Members summary'),
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w700,
                         color: AppColors.navy,
@@ -120,12 +134,15 @@ class _HouseholdIncomeBasedSettingsScreenState
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Ingreso total del hogar: $sym${data.totalIncome.toStringAsFixed(2)}',
+                  l.t(
+                    'Ingreso total del hogar: $sym${data.totalIncome.toStringAsFixed(2)}',
+                    'Total household income: $sym${data.totalIncome.toStringAsFixed(2)}',
+                  ),
                   style: const TextStyle(color: AppColors.textGray),
                 ),
                 const SizedBox(height: 12),
                 if (profiles.isEmpty)
-                  const Text('No hay miembros activos en este hogar.')
+                  Text(l.t('No hay miembros activos en este hogar.', 'No active members in this household.'))
                 else
                   ...profiles.map(
                     (m) => Card(
@@ -139,7 +156,10 @@ class _HouseholdIncomeBasedSettingsScreenState
                       child: ListTile(
                         title: Text(m.name),
                         subtitle: Text(
-                          'Ingreso mensual: $sym${m.income.toStringAsFixed(2)}',
+                          l.t(
+                            'Ingreso mensual: $sym${m.income.toStringAsFixed(2)}',
+                            'Monthly income: $sym${m.income.toStringAsFixed(2)}',
+                          ),
                         ),
                         trailing: Text(
                           '${m.percentage.toStringAsFixed(1)}%',
@@ -168,7 +188,7 @@ class _HouseholdIncomeBasedSettingsScreenState
                             color: AppColors.white,
                           ),
                         )
-                      : const Text('Guardar configuración'),
+                      : Text(l.t('Guardar configuración', 'Save configuration')),
                 ),
               ],
             ),
@@ -195,7 +215,7 @@ class _ErrorView extends StatelessWidget {
           children: [
             Text(message, textAlign: TextAlign.center),
             const SizedBox(height: 16),
-            FilledButton(onPressed: onRetry, child: const Text('Reintentar')),
+            FilledButton(onPressed: onRetry, child: Text(context.l10n.retry)),
           ],
         ),
       ),

@@ -5,10 +5,13 @@ class AppRoutes {
   static const forgotPassword = '/forgot-password';
 
   static const memberDashboard = '/member/dashboard';
+  static const memberBills = '/member/bills';
   static const memberContributions = '/member/contributions';
   static const memberHouseholdStatus = '/member/household-status';
   static const memberSearchHousehold = '/member/search-household';
   static const memberSettings = '/member/settings';
+
+  static const unknownRole = '/auth/unknown-role';
 
   static const repDashboard = '/rep/dashboard';
   static const repHouseholds = '/rep/households';

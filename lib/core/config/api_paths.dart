@@ -77,6 +77,23 @@ abstract final class ApiPaths {
 
   static const String householdMemberRoot = '/api/v1/household_member';
 
+  static const String invitationsRoot = '/api/v1/invitations';
+
+  static String invitationsPending({
+    required String email,
+    required String householdId,
+  }) {
+    final e = Uri.encodeQueryComponent(email);
+    final h = Uri.encodeQueryComponent(householdId);
+    return '/api/v1/invitations/pending?email=$e&householdId=$h';
+  }
+
+  static String householdMemberPromote(String id) =>
+      '/api/v1/household_member/$id/promote-representative';
+
+  static String householdMemberDemote(String id) =>
+      '/api/v1/household_member/$id/demote-representative';
+
   static const String contributionRoot = '/api/v1/contribution';
 
   static String settingsByUserQuery(String userId) {

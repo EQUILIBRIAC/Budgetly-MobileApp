@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:budgetly_app/app/l10n/app_localizations.dart';
 import 'package:budgetly_app/app/theme/app_colors.dart';
 import 'package:budgetly_app/core/network/api_failure.dart';
 import 'package:budgetly_app/core/utils/currency_utils.dart';
@@ -33,6 +34,7 @@ class _BillPaymentsScreenState extends ConsumerState<BillPaymentsScreen> {
       BillPaymentsParams(billId: widget.billId, bill: widget.bill);
 
   Future<void> _confirmAndMarkPaid(MemberPaymentItem item) async {
+    final l = context.l10n;
     final sym = CurrencyUtils.formatSymbol(
       ref.read(representativeProvider).valueOrNull?.currency == 'USD',
     );
@@ -40,20 +42,22 @@ class _BillPaymentsScreenState extends ConsumerState<BillPaymentsScreen> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Confirmar pago'),
+        title: Text(l.t('Confirmar pago', 'Confirm payment')),
         content: Text(
-          '¿Confirmar pago de $sym${item.amount.toStringAsFixed(2)} '
-          'de ${item.memberName}?',
+          l.t(
+            '¿Confirmar pago de $sym${item.amount.toStringAsFixed(2)} de ${item.memberName}?',
+            'Confirm payment of $sym${item.amount.toStringAsFixed(2)} from ${item.memberName}?',
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancelar'),
+            child: Text(l.cancel),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: FilledButton.styleFrom(backgroundColor: AppColors.dashGreen),
-            child: const Text('Confirmar'),
+            child: Text(l.confirm),
           ),
         ],
       ),
@@ -70,7 +74,7 @@ class _BillPaymentsScreenState extends ConsumerState<BillPaymentsScreen> {
           );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Pago registrado correctamente')),
+        SnackBar(content: Text(l.paymentRegisteredSuccess)),
       );
     } on MarkPaidEndpointMissingException catch (e) {
       if (!mounted) return;
@@ -89,6 +93,7 @@ class _BillPaymentsScreenState extends ConsumerState<BillPaymentsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l = context.l10n;
     final repData = ref.watch(representativeProvider).valueOrNull;
     final sym = CurrencyUtils.formatSymbol(repData?.currency == 'USD');
     final paymentsAsync = ref.watch(billPaymentsProvider(_params));
@@ -114,7 +119,7 @@ class _BillPaymentsScreenState extends ConsumerState<BillPaymentsScreen> {
                   ),
                   Expanded(
                     child: Text(
-                      'Pagos del gasto',
+                      l.t('Pagos del gasto', 'Bill payments'),
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
                             fontWeight: FontWeight.w800,
                             color: AppColors.navy,
@@ -131,7 +136,7 @@ class _BillPaymentsScreenState extends ConsumerState<BillPaymentsScreen> {
               ),
               const SizedBox(height: 20),
               Text(
-                'Aportes por miembro',
+                l.t('Aportes por miembro', 'Contributions by member'),
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w700,
                       color: AppColors.navy,
@@ -139,7 +144,7 @@ class _BillPaymentsScreenState extends ConsumerState<BillPaymentsScreen> {
               ),
               const SizedBox(height: 12),
               if (vm.members.isEmpty)
-                const Text('No hay aportes registrados para esta factura.')
+                Text(l.t('No hay aportes registrados para esta factura.', 'No contributions registered for this bill.'))
               else
                 ...vm.members.map(
                   (item) => MemberPaymentCard(
@@ -176,7 +181,7 @@ class _ErrorBody extends StatelessWidget {
           children: [
             Text(message, textAlign: TextAlign.center),
             const SizedBox(height: 16),
-            FilledButton(onPressed: onRetry, child: const Text('Reintentar')),
+            FilledButton(onPressed: onRetry, child: Text(context.l10n.retry)),
           ],
         ),
       ),

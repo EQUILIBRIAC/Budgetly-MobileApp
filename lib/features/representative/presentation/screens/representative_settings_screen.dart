@@ -12,6 +12,7 @@ import 'package:budgetly_app/core/network/api_failure.dart';
 import 'package:budgetly_app/core/network/http_service.dart';
 import 'package:budgetly_app/core/storage/storage_service.dart';
 import 'package:budgetly_app/domain/entities/settings_entity.dart';
+import 'package:budgetly_app/app/l10n/app_localizations.dart';
 import 'package:budgetly_app/app/providers/app_ui_providers.dart';
 import 'package:budgetly_app/core/storage/ui_prefs_storage.dart';
 import 'package:budgetly_app/core/utils/api_value_parsers.dart';
@@ -37,6 +38,18 @@ class _RepresentativeSettingsScreenState
   bool _saving = false;
   String? _msg;
   String _emailDisplay = '';
+
+  void _applyLanguageImmediately(String language) {
+    final code = language.toLowerCase().startsWith('en') ? 'en' : 'es';
+    UiPrefsStorage.saveLocaleCode(code);
+    ref.read(appLocaleProvider.notifier).state = Locale(code);
+  }
+
+  void _applyThemeImmediately(bool dark) {
+    UiPrefsStorage.saveThemeDark(dark);
+    ref.read(appThemeModeProvider.notifier).state =
+        dark ? ThemeMode.dark : ThemeMode.light;
+  }
 
   Future<void> _persistUiFromSettings(UserSettings s) async {
     final code = s.language.toLowerCase().startsWith('en') ? 'en' : 'es';
@@ -84,7 +97,7 @@ class _RepresentativeSettingsScreenState
       await _reload();
       await _refreshEmailSubtitle();
     } catch (_) {
-      _msg = 'No se pudieron cargar los ajustes.';
+      if (mounted) _msg = context.l10n.settingsLoadError;
     }
     if (!mounted) return;
     setState(() => _loading = false);
@@ -154,7 +167,7 @@ class _RepresentativeSettingsScreenState
         setState(() {
           _settings = saved;
           _lastSaved = saved;
-          _msg = 'Cambios guardados.';
+          _msg = context.l10n.settingsSaved;
         });
       }
       await _persistUiFromSettings(saved);
@@ -188,11 +201,12 @@ class _RepresentativeSettingsScreenState
     await Clipboard.setData(ClipboardData(text: text));
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Copiado')),
+      SnackBar(content: Text(context.l10n.copied)),
     );
   }
 
   Future<void> _confirmDeleteAccount() async {
+    final l = context.l10n;
     var email = normalizeApiEmail(
       ref.read(authControllerProvider).currentUser?.email ?? '',
     );
@@ -209,11 +223,7 @@ class _RepresentativeSettingsScreenState
     if (!email.contains('@')) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'No se pudo obtener el correo para esta acción; cierra sesión y entra de nuevo.',
-          ),
-        ),
+        SnackBar(content: Text(l.emailRequiredForAction)),
       );
       return;
     }
@@ -222,20 +232,17 @@ class _RepresentativeSettingsScreenState
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Eliminar cuenta'),
+        title: Text(l.deleteAccountTitle),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text(
-              'Esta acción desactiva tu usuario y no se puede deshacer. '
-              'Escribe tu correo para confirmar.',
-            ),
+            Text(l.deleteAccountBody),
             const SizedBox(height: 12),
             TextField(
               controller: ctrl,
-              decoration: const InputDecoration(
-                labelText: 'Correo',
+              decoration: InputDecoration(
+                labelText: l.emailLabel,
               ),
             ),
           ],
@@ -243,12 +250,12 @@ class _RepresentativeSettingsScreenState
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancelar'),
+            child: Text(l.cancel),
           ),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: AppColors.dangerRed),
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Eliminar'),
+            child: Text(l.deleteAction),
           ),
         ],
       ),
@@ -256,7 +263,7 @@ class _RepresentativeSettingsScreenState
     if (ok != true || !mounted) return;
     if (ctrl.text.trim().toLowerCase() != email.toLowerCase()) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('El correo no coincide.')),
+        SnackBar(content: Text(l.emailMismatch)),
       );
       return;
     }
@@ -275,6 +282,7 @@ class _RepresentativeSettingsScreenState
 
   @override
   Widget build(BuildContext context) {
+    final l = context.l10n;
     final auth = ref.watch(authControllerProvider);
     return RepresentativeDashboardLayout(
       currentRoute: AppRoutes.repSettings,
@@ -286,16 +294,16 @@ class _RepresentativeSettingsScreenState
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Text(
-                    'Configuración de cuenta',
+                    l.accountSettingsTitle,
                     style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                           color: AppColors.navy,
                           fontWeight: FontWeight.w800,
                         ),
                   ),
                   const SizedBox(height: 4),
-                  const Text(
-                    'Preferencias y opciones a nivel cuenta.',
-                    style: TextStyle(color: AppColors.textGray, fontSize: 14),
+                  Text(
+                    l.accountSettingsSubtitle,
+                    style: const TextStyle(color: AppColors.textGray, fontSize: 14),
                   ),
                   const SizedBox(height: 16),
                   Wrap(
@@ -303,7 +311,7 @@ class _RepresentativeSettingsScreenState
                     runSpacing: 8,
                     children: [
                       _Badge(
-                        label: 'Usuario',
+                        label: l.user,
                         color: AppColors.dashGreen.withValues(alpha: 0.2),
                         textColor: AppColors.dashGreen,
                       ),
@@ -313,7 +321,7 @@ class _RepresentativeSettingsScreenState
                         textColor: AppColors.dashBlue,
                       ),
                       _Badge(
-                        label: 'Plan ${auth.currentUser?.plan ?? 'FREE'}',
+                        label: l.planLabel(auth.currentUser?.plan ?? 'FREE'),
                         color: AppColors.dashBadgeGray,
                         textColor: AppColors.labelGray,
                       ),
@@ -333,7 +341,7 @@ class _RepresentativeSettingsScreenState
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           Text(
-                            'Preferencias',
+                            l.preferences,
                             style: Theme.of(context).textTheme.titleMedium?.copyWith(
                                   fontWeight: FontWeight.w700,
                                   color: AppColors.navy,
@@ -343,38 +351,43 @@ class _RepresentativeSettingsScreenState
                           Text(
                             _emailDisplay.isNotEmpty
                                 ? _emailDisplay
-                                : 'Sin correo en el perfil local. Cierra sesión y vuelve a entrar para sincronizarlo.',
+                                : l.noEmailInProfile,
                             style: const TextStyle(color: AppColors.textGray),
                           ),
                           const SizedBox(height: 16),
-                          const Text(
-                            'Idioma',
-                            style: TextStyle(
+                          Text(
+                            l.language,
+                            style: const TextStyle(
                               fontWeight: FontWeight.w600,
                               color: AppColors.navy,
                             ),
                           ),
                           const SizedBox(height: 8),
                           SegmentedButton<String>(
-                            segments: const [
-                              ButtonSegment(value: 'es', label: Text('ES')),
-                              ButtonSegment(value: 'en', label: Text('EN')),
+                            segments: [
+                              ButtonSegment(value: 'es', label: Text(l.spanish)),
+                              ButtonSegment(value: 'en', label: Text(l.english)),
                             ],
-                            selected: {_settings!.language.startsWith('en') ? 'en' : 'es'},
+                            selected: {
+                              _settings!.language.toLowerCase().startsWith('en')
+                                  ? 'en'
+                                  : 'es',
+                            },
                             onSelectionChanged: (s) {
                               final lang = s.first == 'en' ? 'en' : 'es';
                               setState(() {
                                 _msg = null;
                                 _settings = _settings!.copyWith(language: lang);
                               });
-                              ref.read(appLocaleProvider.notifier).state =
-                                  Locale(lang);
+                              _applyLanguageImmediately(lang);
                             },
                           ),
                           SwitchListTile(
                             contentPadding: EdgeInsets.zero,
-                            title: const Text('Modo oscuro'),
-                            subtitle: Text(_settings!.darkMode ? 'Activado' : 'Desactivado'),
+                            title: Text(l.darkMode),
+                            subtitle: Text(
+                              _settings!.darkMode ? l.onLabel : l.offLabel,
+                            ),
                             value: _settings!.darkMode,
                             activeThumbColor: AppColors.dashGreen,
                             onChanged: (v) {
@@ -382,15 +395,16 @@ class _RepresentativeSettingsScreenState
                                 _msg = null;
                                 _settings = _settings!.copyWith(darkMode: v);
                               });
-                              ref.read(appThemeModeProvider.notifier).state =
-                                  v ? ThemeMode.dark : ThemeMode.light;
+                              _applyThemeImmediately(v);
                             },
                           ),
                           SwitchListTile(
                             contentPadding: EdgeInsets.zero,
-                            title: const Text('Notificaciones por correo'),
+                            title: Text(l.emailNotifications),
                             subtitle: Text(
-                              _settings!.notificationEnabled ? 'Activadas' : 'Desactivadas',
+                              _settings!.notificationEnabled
+                                  ? l.enabled
+                                  : l.disabled,
                             ),
                             value: _settings!.notificationEnabled,
                             activeThumbColor: AppColors.dashGreen,
@@ -402,8 +416,8 @@ class _RepresentativeSettingsScreenState
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            'Creado: ${DateFormat('dd/MM/yyyy HH:mm').format(_settings!.createdAt)} · '
-                            'Actualizado: ${DateFormat('dd/MM/yyyy HH:mm').format(_settings!.updatedAt)}',
+                            '${l.createdAt}: ${DateFormat('dd/MM/yyyy HH:mm').format(_settings!.createdAt)} · '
+                            '${l.lastUpdated}: ${DateFormat('dd/MM/yyyy HH:mm').format(_settings!.updatedAt)}',
                             style: const TextStyle(
                               fontSize: 11,
                               color: AppColors.labelGray,
@@ -418,7 +432,7 @@ class _RepresentativeSettingsScreenState
                             children: [
                               OutlinedButton(
                                 onPressed: _dirty() ? _reset : null,
-                                child: const Text('Restablecer'),
+                                child: Text(l.reset),
                               ),
                               const SizedBox(width: 12),
                               FilledButton(
@@ -437,15 +451,13 @@ class _RepresentativeSettingsScreenState
                                         child:
                                             CircularProgressIndicator(strokeWidth: 2),
                                       )
-                                    : const Text('Guardar cambios'),
+                                    : Text(l.saveChanges),
                               ),
                             ],
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            _dirty()
-                                ? 'Pulsa «Guardar cambios» para enviar la configuración al servidor.'
-                                : 'Sin cambios pendientes. Modifica idioma, tema o notificaciones para habilitar Guardar.',
+                            _dirty() ? l.settingsDirtyHint : l.settingsCleanHint,
                             style: const TextStyle(
                               fontSize: 12,
                               color: AppColors.labelGray,
@@ -458,7 +470,7 @@ class _RepresentativeSettingsScreenState
                                 ? () => _copy(auth.currentUser!.id)
                                 : null,
                             icon: const Icon(Icons.copy_rounded, size: 18),
-                            label: const Text('Copiar mi ID'),
+                            label: Text(l.copyMyId),
                           ),
                         ],
                       ),
@@ -477,13 +489,11 @@ class _RepresentativeSettingsScreenState
                         Icons.pie_chart_outline_rounded,
                         color: AppColors.dashGreen,
                       ),
-                      title: const Text(
-                        'Reparto por ingreso (IncomeBased)',
-                        style: TextStyle(fontWeight: FontWeight.w600),
+                      title: Text(
+                        l.incomeSplitSettings,
+                        style: const TextStyle(fontWeight: FontWeight.w600),
                       ),
-                      subtitle: const Text(
-                        'Configura el reparto proporcional y recalcula aportes.',
-                      ),
+                      subtitle: Text(l.incomeSplitSettingsSubtitle),
                       trailing: const Icon(Icons.chevron_right),
                       onTap: () =>
                           context.push(AppRoutes.repHouseholdIncomeSettings),
@@ -502,19 +512,18 @@ class _RepresentativeSettingsScreenState
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            'Zona de peligro',
-                            style: TextStyle(
+                          Text(
+                            l.dangerZone,
+                            style: const TextStyle(
                               color: AppColors.dangerRed,
                               fontWeight: FontWeight.w800,
                               fontSize: 16,
                             ),
                           ),
                           const SizedBox(height: 8),
-                          const Text(
-                            'Eliminar la cuenta puede desactivar miembros vinculados. '
-                            'No se puede deshacer.',
-                            style: TextStyle(
+                          Text(
+                            l.dangerZoneBody,
+                            style: const TextStyle(
                               fontSize: 13,
                               color: AppColors.textGray,
                               height: 1.35,
@@ -528,7 +537,7 @@ class _RepresentativeSettingsScreenState
                                 backgroundColor: AppColors.dangerRed,
                               ),
                               onPressed: _confirmDeleteAccount,
-                              child: const Text('Eliminar cuenta'),
+                              child: Text(l.deleteAccount),
                             ),
                           ),
                         ],

@@ -7,6 +7,9 @@ import '../../features/auth/presentation/providers/auth_providers.dart';
 import '../../features/auth/presentation/screens/forgot_password_screen.dart';
 import '../../features/auth/presentation/screens/login_screen.dart';
 import '../../features/auth/presentation/screens/signup_screen.dart';
+import '../../features/auth/presentation/screens/unknown_role_screen.dart';
+import '../../app/widgets/budgetly_logo.dart';
+import '../../features/member/presentation/screens/member_bills_screen.dart';
 import '../../features/member/presentation/screens/member_contributions_screen.dart';
 import '../../features/member/presentation/screens/member_dashboard_screen.dart';
 import '../../features/member/presentation/screens/member_household_status_screen.dart';
@@ -49,8 +52,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const ForgotPasswordScreen(),
       ),
       GoRoute(
+        path: AppRoutes.unknownRole,
+        builder: (context, state) => const UnknownRoleScreen(),
+      ),
+      GoRoute(
         path: AppRoutes.memberDashboard,
         builder: (context, state) => const MemberDashboardScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.memberBills,
+        builder: (context, state) => const MemberBillsScreen(),
       ),
       GoRoute(
         path: AppRoutes.memberContributions,
@@ -136,8 +147,25 @@ class SplashScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(child: CircularProgressIndicator()),
+    final scheme = Theme.of(context).colorScheme;
+    return Scaffold(
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const BudgetlyLogo(size: 72, showWordmark: true),
+            const SizedBox(height: 28),
+            SizedBox(
+              width: 28,
+              height: 28,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.5,
+                color: scheme.primary,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

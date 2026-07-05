@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:http/http.dart' as http;
+import 'package:http/http.dart' as http_client;
 
 import '../../../../core/config/api_config.dart';
 import '../../../../core/config/api_paths.dart';
@@ -14,6 +14,7 @@ class AuthRemoteDataSource {
   AuthRemoteDataSource(this._http);
 
   final HttpService _http;
+  HttpService get http => _http;
   String? _lastToken;
 
   String? get lastToken => _lastToken;
@@ -51,7 +52,7 @@ class AuthRemoteDataSource {
   }) async {
     final normalizedEmail = email.trim().toLowerCase();
 
-    final http.Response res = await _http.postReturningResponse(
+    final http_client.Response res = await _http.postReturningResponse(
       ApiConfig.pathSignIn,
       body: {
         'email': normalizedEmail,
@@ -92,7 +93,7 @@ class AuthRemoteDataSource {
 
       final responseRole = (_toString(response['role']) ??
               decodeRoleFromToken(token) ??
-              'representative')
+              'unknown')
           .toLowerCase();
       final authIsNewUser = response['isNewUser'] as bool? ?? false;
       final authHouseholdId = _toString(response['householdId']);

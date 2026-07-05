@@ -2,8 +2,9 @@
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:budgetly_app/app/l10n/app_localizations.dart';
 import 'package:budgetly_app/app/router/app_routes.dart';
-import 'package:budgetly_app/app/l10n/app_strings.dart';
+import 'package:budgetly_app/app/widgets/budgetly_logo.dart';
 import 'package:budgetly_app/core/config/api_config.dart';
 import 'package:budgetly_app/core/config/env_config.dart';
 import 'package:budgetly_app/app/theme/app_colors.dart';
@@ -65,6 +66,7 @@ class _SignupScreenState extends State<SignupScreen> {
 
   Future<void> _signUp() async {
     if (_isSubmitting) return;
+    final l = context.l10n;
 
     setState(() {
       _error = '';
@@ -73,29 +75,29 @@ class _SignupScreenState extends State<SignupScreen> {
 
     // Validations
     if (_nameController.text.trim().isEmpty) {
-      setState(() => _error = 'Ingresa tu nombre.');
+      setState(() => _error = l.t('Ingresa tu nombre.', 'Enter your name.'));
       return;
     }
 
     if (!_validateEmail(_emailController.text)) {
-      setState(() => _error = 'Ingresa un correo válido.');
+      setState(() => _error = l.t('Ingresa un correo válido.', 'Enter a valid email.'));
       return;
     }
 
     if (_passwordController.text.length < 8) {
-      setState(() => _error = 'La contraseña debe tener al menos 8 caracteres.');
+      setState(() => _error = l.t('La contraseña debe tener al menos 8 caracteres.', 'Password must be at least 8 characters.'));
       return;
     }
 
     if (_passwordController.text != _confirmController.text) {
-      setState(() => _error = 'Las contraseñas no coinciden.');
+      setState(() => _error = l.t('Las contraseñas no coinciden.', 'Passwords do not match.'));
       return;
     }
 
     final needsTerms =
         _role == 'Representative' || _role == 'Admin';
     if (needsTerms && !_acceptTerms) {
-      setState(() => _error = 'Debes aceptar los términos y la política de privacidad.');
+      setState(() => _error = l.t('Debes aceptar los términos y la política de privacidad.', 'You must accept the terms and privacy policy.'));
       return;
     }
 
@@ -103,8 +105,10 @@ class _SignupScreenState extends State<SignupScreen> {
       final hid = _householdIdController.text.trim();
       if (hid.isEmpty) {
         setState(
-          () => _error =
+          () => _error = l.t(
               'Como miembro necesitas el ID del hogar (debe existir en el servidor).',
+              'As a member you need the household ID (must exist on the server).',
+            ),
         );
         return;
       }
@@ -115,6 +119,7 @@ class _SignupScreenState extends State<SignupScreen> {
 
   Future<void> _confirmSignUp() async {
     if (_isSubmitting) return;
+    final l = context.l10n;
     setState(() => _isSubmitting = true);
 
     try {
@@ -159,7 +164,7 @@ class _SignupScreenState extends State<SignupScreen> {
 
       if (mounted) {
         setState(() {
-          _success = 'Cuenta creada. Redirigiendo al inicio de sesión...';
+          _success = l.t('Cuenta creada. Redirigiendo al inicio de sesión...', 'Account created. Redirecting to sign in...');
         });
 
         await Future.delayed(const Duration(milliseconds: 1200));
@@ -184,6 +189,7 @@ class _SignupScreenState extends State<SignupScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l = context.l10n;
     final isMobile = MediaQuery.of(context).size.width < 600;
 
     return Scaffold(
@@ -198,39 +204,12 @@ class _SignupScreenState extends State<SignupScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Logo
-                    Row(
-                      children: [
-                        Container(
-                          width: 36,
-                          height: 36,
-                          decoration: BoxDecoration(
-                            color: AppColors.teal,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          alignment: Alignment.center,
-                          child: const Icon(
-                            Icons.account_balance_wallet_outlined,
-                            color: AppColors.white,
-                            size: 20,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        const Text(
-                          AppStrings.appName,
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w500,
-                            color: AppColors.navy,
-                          ),
-                        ),
-                      ],
-                    ),
+                    const BudgetlyLogo(size: 36, showWordmark: true),
                     const SizedBox(height: 28),
 
                     // Title
-                    const Text(
-                      'Create Account',
+                    Text(
+                      l.t('Crear cuenta', 'Create Account'),
                       style: TextStyle(
                         fontSize: 28,
                         fontWeight: FontWeight.w700,
@@ -239,8 +218,8 @@ class _SignupScreenState extends State<SignupScreen> {
                       ),
                     ),
                     const SizedBox(height: 6),
-                    const Text(
-                      'It only takes a minute to get started.',
+                    Text(
+                      l.t('Solo toma un minuto empezar.', 'It only takes a minute to get started.'),
                       style: TextStyle(
                         fontSize: 14,
                         color: AppColors.labelGray,
@@ -305,8 +284,8 @@ class _SignupScreenState extends State<SignupScreen> {
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'Tipo de cuenta',
+                        Text(
+                          l.t('Tipo de cuenta', 'Account type'),
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
@@ -335,18 +314,18 @@ class _SignupScreenState extends State<SignupScreen> {
                               ),
                             ),
                           ),
-                          items: const [
+                          items: [
                             DropdownMenuItem(
                               value: 'Admin',
-                              child: Text('Administrador'),
+                              child: Text(l.t('Administrador', 'Administrator')),
                             ),
                             DropdownMenuItem(
                               value: 'Representative',
-                              child: Text('Representante'),
+                              child: Text(l.representativeRole),
                             ),
                             DropdownMenuItem(
                               value: 'Member',
-                              child: Text('Miembro'),
+                              child: Text(l.memberRole),
                             ),
                           ],
                           onChanged: (value) {
@@ -528,8 +507,8 @@ class _SignupScreenState extends State<SignupScreen> {
                                   strokeWidth: 2,
                                 ),
                               )
-                            : const Text(
-                                'Create Account',
+                            : Text(
+                                l.t('Crear cuenta', 'Create Account'),
                                 style: TextStyle(
                                   fontSize: 15,
                                   fontWeight: FontWeight.w600,

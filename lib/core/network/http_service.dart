@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../auth/session_revoker.dart';
@@ -90,17 +89,6 @@ class HttpService {
     );
   }
 
-  void _debugLog(String verb, String endpoint, http.Response response) {
-    if (!kDebugMode) return;
-    final raw = response.body;
-    final snippet =
-        raw.length > 220 ? '${raw.substring(0, 220)}…' : raw;
-    debugPrint(
-      '[HTTP] $verb $endpoint → ${response.statusCode} (${raw.length} B) '
-      '${snippet.replaceAll(RegExp(r'\s+'), ' ')}',
-    );
-  }
-
   void _onUnauthorized(int statusCode) {
     if (statusCode != 401 && statusCode != 403) return;
     if (_token == null || _token!.isEmpty) return;
@@ -138,7 +126,6 @@ class HttpService {
   }) async {
     try {
       final response = await _postRaw(endpoint, body: body);
-      _debugLog('POST', endpoint, response);
       final code = response.statusCode;
       if (code >= 200 && code < 300) {
         return _decodeJsonMap(response.body, verb: 'POST $endpoint');
@@ -164,7 +151,6 @@ class HttpService {
   }) async {
     try {
       final response = await _putRaw(endpoint, body: body);
-      _debugLog('PUT', endpoint, response);
       final code = response.statusCode;
       if (code >= 200 && code < 300) {
         return _decodeJsonMap(response.body, verb: 'PUT $endpoint');
@@ -187,7 +173,6 @@ class HttpService {
   Future<Map<String, dynamic>> get(String endpoint) async {
     try {
       final response = await _getRaw(endpoint);
-      _debugLog('GET', endpoint, response);
       final code = response.statusCode;
       if (code >= 200 && code < 300) {
         return _decodeJsonMap(response.body, verb: 'GET $endpoint');
@@ -211,7 +196,6 @@ class HttpService {
   Future<Map<String, dynamic>> delete(String endpoint) async {
     try {
       final response = await _deleteRaw(endpoint);
-      _debugLog('DELETE', endpoint, response);
       final code = response.statusCode;
       if (code >= 200 && code < 300) {
         final raw = response.body.trim();

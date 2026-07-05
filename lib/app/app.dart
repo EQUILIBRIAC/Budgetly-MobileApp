@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'l10n/app_localizations.dart';
 import 'providers/app_ui_providers.dart';
 import 'router/app_router.dart';
 import 'theme/app_theme.dart';
@@ -38,6 +39,7 @@ class _BudgetlyAppState extends ConsumerState<BudgetlyApp> {
     final locale = ref.watch(appLocaleProvider);
     return MaterialApp.router(
       title: 'Budgetly',
+      debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: themeMode,
@@ -46,7 +48,17 @@ class _BudgetlyAppState extends ConsumerState<BudgetlyApp> {
         Locale('es'),
         Locale('en'),
       ],
+      localeResolutionCallback: (deviceLocale, supported) {
+        if (locale != null) return locale;
+        if (deviceLocale != null) {
+          for (final l in supported) {
+            if (l.languageCode == deviceLocale.languageCode) return l;
+          }
+        }
+        return const Locale('es');
+      },
       localizationsDelegates: const [
+        AppLocalizations.delegate,
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,

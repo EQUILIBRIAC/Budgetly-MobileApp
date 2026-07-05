@@ -1,9 +1,7 @@
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../config/env_config.dart';
 import '../constants/storage_keys.dart';
 
 /// Nombres visibles cuando el API devuelve `name` / `personName` vacíos.
@@ -47,25 +45,6 @@ abstract final class MemberDisplayNameStore {
       );
     } catch (_) {
       return {};
-    }
-  }
-
-  /// Rellena nombres de cuentas demo cuando el backend no persistió `name` del sign-up.
-  static Future<void> seedDevSignupNamesIfMissing() async {
-    if (!kDebugMode) return;
-    if (!EnvConfig.apiBaseUrl.contains('budgetly-api-dev')) return;
-
-    const seeds = <String, String>{
-      'miembro1@test.com': 'Miembro Uno',
-      'miembro2@test.com': 'Miembro Dos',
-      'miembro3@test.com': 'Miembro Tres',
-      'representante.premium@test.com': 'Representante Premium',
-    };
-
-    final existing = await loadByEmail();
-    for (final entry in seeds.entries) {
-      if ((existing[entry.key] ?? '').trim().isNotEmpty) continue;
-      await saveForEmail(entry.key, entry.value);
     }
   }
 

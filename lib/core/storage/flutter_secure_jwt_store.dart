@@ -10,9 +10,7 @@ class FlutterSecureJwtStore implements JwtTokenStore {
     FlutterSecureStorage? secure,
   }) : _secure = secure ?? _defaultStorage;
 
-  static const FlutterSecureStorage _defaultStorage = FlutterSecureStorage(
-    aOptions: AndroidOptions(encryptedSharedPreferences: true),
-  );
+  static const FlutterSecureStorage _defaultStorage = FlutterSecureStorage();
 
   final FlutterSecureStorage _secure;
   static const _secureKey = 'budgetly_auth_jwt_v1';

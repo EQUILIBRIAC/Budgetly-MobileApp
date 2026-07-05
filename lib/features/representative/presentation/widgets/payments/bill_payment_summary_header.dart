@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:budgetly_app/app/l10n/app_localizations.dart';
 import 'package:budgetly_app/app/theme/app_colors.dart';
 import 'package:budgetly_app/domain/entities/payment_entities.dart';
 import 'package:budgetly_app/features/representative/presentation/widgets/payments/payment_progress_bar.dart';
@@ -20,6 +21,7 @@ class BillPaymentSummaryHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l = context.l10n;
     return Card(
       elevation: 0,
       color: AppColors.white,
@@ -52,7 +54,10 @@ class BillPaymentSummaryHeader extends StatelessWidget {
             PaymentProgressBar(progressPercent: progress.progressPercent),
             const SizedBox(height: 10),
             Text(
-              '${progress.paidMembersCount} de ${progress.totalMembersCount} miembros pagaron',
+              l.t(
+                '${progress.paidMembersCount} de ${progress.totalMembersCount} miembros pagaron',
+                '${progress.paidMembersCount} of ${progress.totalMembersCount} members paid',
+              ),
               style: const TextStyle(
                 fontWeight: FontWeight.w600,
                 color: AppColors.navy,
@@ -60,14 +65,19 @@ class BillPaymentSummaryHeader extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              'Pagado $currencySymbol${progress.paidAmount.toStringAsFixed(2)} '
-              'de $currencySymbol${billAmount.toStringAsFixed(2)}',
+              l.t(
+                'Pagado $currencySymbol${progress.paidAmount.toStringAsFixed(2)} de $currencySymbol${billAmount.toStringAsFixed(2)}',
+                'Paid $currencySymbol${progress.paidAmount.toStringAsFixed(2)} of $currencySymbol${billAmount.toStringAsFixed(2)}',
+              ),
               style: const TextStyle(color: AppColors.textGray),
             ),
             if (progress.progressPercent > 0) ...[
               const SizedBox(height: 4),
               Text(
-                '${progress.progressPercent.toStringAsFixed(0)}% completado',
+                l.t(
+                  '${progress.progressPercent.toStringAsFixed(0)}% completado',
+                  '${progress.progressPercent.toStringAsFixed(0)}% complete',
+                ),
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,

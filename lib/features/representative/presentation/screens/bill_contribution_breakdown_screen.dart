@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import 'package:budgetly_app/app/l10n/app_localizations.dart';
 import 'package:budgetly_app/app/theme/app_colors.dart';
 import 'package:budgetly_app/core/network/api_failure.dart';
 import 'package:budgetly_app/core/utils/currency_utils.dart';
@@ -55,10 +56,11 @@ class _BreakdownBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l = context.l10n;
     final bill = viewModel.bill;
     final dateFmt = DateFormat('yyyy-MM-dd');
     final due = bill.paymentDate == null
-        ? 'Sin fecha'
+        ? l.t('Sin fecha', 'No date')
         : dateFmt.format(bill.paymentDate!);
 
     return SingleChildScrollView(
@@ -105,7 +107,7 @@ class _BreakdownBody extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  Text('Vencimiento: $due'),
+                  Text(l.t('Vencimiento: $due', 'Due: $due')),
                   const SizedBox(height: 12),
                   _StrategyBadge(strategy: viewModel.strategy),
                 ],
@@ -114,7 +116,7 @@ class _BreakdownBody extends StatelessWidget {
           ),
           const SizedBox(height: 20),
           Text(
-            'Desglose por miembro',
+            l.t('Desglose por miembro', 'Breakdown by member'),
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.w700,
                   color: AppColors.navy,
@@ -122,7 +124,7 @@ class _BreakdownBody extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           if (viewModel.items.isEmpty)
-            const Text('No hay miembros para repartir este gasto.')
+            Text(l.t('No hay miembros para repartir este gasto.', 'No members to split this expense.'))
           else
             ...viewModel.items.map(
               (item) => Card(
@@ -136,7 +138,10 @@ class _BreakdownBody extends StatelessWidget {
                 child: ListTile(
                   title: Text(item.name),
                   subtitle: Text(
-                    '${item.percentage.toStringAsFixed(1)}% del ingreso del hogar',
+                    l.t(
+                      '${item.percentage.toStringAsFixed(1)}% del ingreso del hogar',
+                      '${item.percentage.toStringAsFixed(1)}% of household income',
+                    ),
                   ),
                   trailing: Text(
                     '$currencySymbol${item.assignedAmount.toStringAsFixed(2)}',
@@ -156,9 +161,9 @@ class _BreakdownBody extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
             ),
             child: ListTile(
-              title: const Text(
-                'Total asignado',
-                style: TextStyle(fontWeight: FontWeight.w700),
+              title: Text(
+                l.totalAssigned,
+                style: const TextStyle(fontWeight: FontWeight.w700),
               ),
               trailing: Text(
                 '$currencySymbol${viewModel.totalAssigned.toStringAsFixed(2)}',
@@ -170,9 +175,12 @@ class _BreakdownBody extends StatelessWidget {
                 ),
               ),
               subtitle: viewModel.totalsMatch
-                  ? const Text('Coincide con el monto de la factura')
+                  ? Text(l.t('Coincide con el monto de la factura', 'Matches bill amount'))
                   : Text(
-                      'Factura: $currencySymbol${bill.amount.toStringAsFixed(2)}',
+                      l.t(
+                        'Factura: $currencySymbol${bill.amount.toStringAsFixed(2)}',
+                        'Bill: $currencySymbol${bill.amount.toStringAsFixed(2)}',
+                      ),
                       style: const TextStyle(color: AppColors.dangerRed),
                     ),
             ),
@@ -226,7 +234,7 @@ class _ErrorBody extends StatelessWidget {
           children: [
             Text(message, textAlign: TextAlign.center),
             const SizedBox(height: 16),
-            FilledButton(onPressed: onRetry, child: const Text('Reintentar')),
+            FilledButton(onPressed: onRetry, child: Text(context.l10n.retry)),
           ],
         ),
       ),

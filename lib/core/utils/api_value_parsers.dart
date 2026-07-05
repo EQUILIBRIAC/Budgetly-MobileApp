@@ -92,6 +92,57 @@ bool parseApiBool(dynamic v, [bool fallback = false]) {
   return fallback;
 }
 
+/// Estado de aporte miembro: API puede enviar `0`/`1`, `true`/`false`, `"Pending"`, `"Done"`.
+int parseMemberContributionStatus(dynamic raw, [int fallback = 0]) {
+  if (raw == null) return fallback;
+  if (raw is bool) return raw ? 1 : 0;
+  if (raw is int) return raw;
+  final s = raw.toString().trim().toLowerCase();
+  if (s == '1' ||
+      s == 'true' ||
+      s == 'done' ||
+      s == 'paid' ||
+      s == 'pagado' ||
+      s == 'completado' ||
+      s == 'cumplido') {
+    return 1;
+  }
+  if (s == '0' ||
+      s == 'false' ||
+      s == 'pending' ||
+      s == 'pendiente') {
+    return 0;
+  }
+  return int.tryParse(s) ?? fallback;
+}
+
+/// Fecha opcional: ISO-8601 o `MM/dd/yyyy` (formato habitual del API Budgetly).
+DateTime? parseApiDateTimeOptional(dynamic raw) {
+  if (raw == null) return null;
+  final s = raw.toString().trim();
+  if (s.isEmpty || s.startsWith('01/01/0001')) return null;
+
+  final iso = DateTime.tryParse(s);
+  if (iso != null) return iso;
+
+  final parts = s.split('/');
+  if (parts.length == 3) {
+    final a = int.tryParse(parts[0]);
+    final b = int.tryParse(parts[1]);
+    final y = int.tryParse(parts[2]);
+    if (a != null && b != null && y != null) {
+      // MM/dd/yyyy cuando el primer segmento es mes (<=12) o dd/MM si >12.
+      if (a <= 12) return DateTime(y, a, b);
+      return DateTime(y, b, a);
+    }
+  }
+  return null;
+}
+
+DateTime parseApiDateTime(dynamic raw, [DateTime? fallback]) {
+  return parseApiDateTimeOptional(raw) ?? fallback ?? DateTime.now();
+}
+
 /// `es`, `es-ES`, `en`, `english`, etc.
 String normalizeLanguageCode(dynamic raw, [String fallback = 'es']) {
   if (raw == null) return fallback;

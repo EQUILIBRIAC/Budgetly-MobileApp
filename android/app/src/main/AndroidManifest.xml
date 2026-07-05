@@ -2,7 +2,7 @@
     <!-- Producción típica: HTTPS Azure. Para desarrollo con API local HTTP (ej. http://10.0.2.2:5070). -->
     <uses-permission android:name="android.permission.INTERNET" />
     <application
-        android:label="budgetly_app"
+        android:label="Budgetly"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="true">

@@ -1,21 +1,27 @@
 ﻿import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:budgetly_app/app/providers/app_ui_providers.dart';
 import 'package:budgetly_app/core/config/api_paths.dart';
 import 'package:budgetly_app/core/config/env_config.dart';
+import 'package:budgetly_app/core/storage/ui_prefs_storage.dart';
 import 'package:budgetly_app/domain/entities/settings_entity.dart';
 import 'package:budgetly_app/core/network/http_service.dart';
 import 'package:budgetly_app/core/storage/storage_service.dart';
+import 'package:budgetly_app/app/l10n/app_localizations.dart';
+import 'package:budgetly_app/features/member/presentation/widgets/member_page_styles.dart';
 import 'package:budgetly_app/features/member/presentation/widgets/member_dashboard_layout.dart';
 import 'package:budgetly_app/app/theme/app_colors.dart';
 
-class MemberSettingsScreen extends StatefulWidget {
+class MemberSettingsScreen extends ConsumerStatefulWidget {
   const MemberSettingsScreen({super.key});
 
   @override
-  State<MemberSettingsScreen> createState() => _MemberSettingsScreenState();
+  ConsumerState<MemberSettingsScreen> createState() =>
+      _MemberSettingsScreenState();
 }
 
-class _MemberSettingsScreenState extends State<MemberSettingsScreen> {
+class _MemberSettingsScreenState extends ConsumerState<MemberSettingsScreen> {
   late HttpService _httpService;
 
   UserSettings? _settings;
@@ -25,19 +31,50 @@ class _MemberSettingsScreenState extends State<MemberSettingsScreen> {
   String _successMessage = '';
   String _errorMessage = '';
 
-  final List<String> _languages = ['en', 'es', 'pt', 'fr'];
-  final Map<String, String> _languageNames = {
-    'en': 'English',
-    'es': 'Español',
-    'pt': 'Português',
-    'fr': 'Français',
-  };
+  String _normalizedLanguage(String raw) =>
+      raw.toLowerCase().startsWith('en') ? 'en' : 'es';
+
+  String _languageLabel(AppLocalizations l, String code) =>
+      code == 'en' ? l.english : l.spanish;
 
   @override
   void initState() {
     super.initState();
     _httpService = HttpService(baseUrl: EnvConfig.apiBaseUrl);
     _loadSettings();
+  }
+
+  Future<void> _persistUiFromSettings(UserSettings s) async {
+    final code = s.language.toLowerCase().startsWith('en') ? 'en' : 'es';
+    await UiPrefsStorage.saveThemeDark(s.darkMode);
+    await UiPrefsStorage.saveLocaleCode(code);
+    if (!mounted) return;
+    ref.read(appThemeModeProvider.notifier).state =
+        s.darkMode ? ThemeMode.dark : ThemeMode.light;
+    ref.read(appLocaleProvider.notifier).state = Locale(code);
+  }
+
+  void _applyThemeImmediately(bool dark) {
+    UiPrefsStorage.saveThemeDark(dark);
+    ref.read(appThemeModeProvider.notifier).state =
+        dark ? ThemeMode.dark : ThemeMode.light;
+  }
+
+  void _applyLanguageImmediately(String language) {
+    final code = language.toLowerCase().startsWith('en') ? 'en' : 'es';
+    UiPrefsStorage.saveLocaleCode(code);
+    ref.read(appLocaleProvider.notifier).state = Locale(code);
+  }
+
+  Future<UserSettings> _mergeWithLocalUiPrefs(UserSettings loaded) async {
+    final localTheme = await UiPrefsStorage.loadThemeMode();
+    final localLocale = await UiPrefsStorage.loadLocale();
+    return loaded.copyWith(
+      darkMode: localTheme == ThemeMode.dark,
+      language: _normalizedLanguage(
+        localLocale?.languageCode ?? loaded.language,
+      ),
+    );
   }
 
   Future<void> _loadSettings() async {
@@ -92,10 +129,14 @@ class _MemberSettingsScreenState extends State<MemberSettingsScreen> {
         );
       }
 
+      loaded = loaded.copyWith(language: _normalizedLanguage(loaded.language));
+      loaded = await _mergeWithLocalUiPrefs(loaded);
+
       setState(() {
         _settings = loaded;
         _lastSaved = loaded;
       });
+      await _persistUiFromSettings(loaded);
     } catch (e) {
       setState(() {
         _errorMessage = 'Error al cargar ajustes: $e';
@@ -145,8 +186,9 @@ class _MemberSettingsScreenState extends State<MemberSettingsScreen> {
       setState(() {
         _settings = savedSettings;
         _lastSaved = savedSettings;
-        _successMessage = 'Ajustes guardados.';
+        _successMessage = context.l10n.settingsSaved;
       });
+      await _persistUiFromSettings(savedSettings);
 
       Future.delayed(const Duration(seconds: 3), () {
         if (mounted) {
@@ -173,6 +215,7 @@ class _MemberSettingsScreenState extends State<MemberSettingsScreen> {
         _successMessage = '';
         _errorMessage = '';
       });
+      _persistUiFromSettings(_lastSaved!);
     }
   }
 
@@ -186,14 +229,15 @@ class _MemberSettingsScreenState extends State<MemberSettingsScreen> {
   }
 
   Widget _buildContent() {
+    final l = context.l10n;
     if (_loading) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
-          children: const [
-            CircularProgressIndicator(),
-            SizedBox(height: 16),
-            Text('Loading settings...'),
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(height: 16),
+            Text(l.loadingSettings),
           ],
         ),
       );
@@ -208,11 +252,11 @@ class _MemberSettingsScreenState extends State<MemberSettingsScreen> {
             const SizedBox(height: 16),
             Text(_errorMessage.isNotEmpty
                 ? _errorMessage
-                : 'Failed to load settings'),
+                : l.settingsLoadError),
             const SizedBox(height: 16),
             ElevatedButton(
               onPressed: _loadSettings,
-              child: const Text('Retry'),
+              child: Text(l.retry),
             ),
           ],
         ),
@@ -226,58 +270,33 @@ class _MemberSettingsScreenState extends State<MemberSettingsScreen> {
           children: [
             // Welcome Card
             Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                border: Border.all(
-                  color: Colors.grey.shade200,
-                  width: 1,
-                ),
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.06),
-                    blurRadius: 24,
-                  ),
-                ],
-              ),
+              decoration: MemberPageStyles.cardDecoration(context),
               padding: const EdgeInsets.all(20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  Text(
+                    l.settingsTitle,
+                    style: MemberPageStyles.sectionTitle(context).copyWith(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    l.settingsSubtitle,
+                    style: MemberPageStyles.bodyMuted(context),
+                  ),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
                     children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Settings',
-                            style: TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.navy,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Manage your preferences and account settings',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey[700],
-                            ),
-                          ),
-                        ],
-                      ),
-                      Wrap(
-                        spacing: 8,
-                        children: [
-                          _buildTag('User', Icons.person),
-                          _buildTag(
-                            'ID: ${_settings!.userId}',
-                            Icons.info,
-                            severity: 'info',
-                          ),
-                        ],
+                      _buildTag(l.user, Icons.person),
+                      _buildTag(
+                        'ID: ${_settings!.userId}',
+                        Icons.info,
+                        severity: 'info',
                       ),
                     ],
                   ),
@@ -332,82 +351,36 @@ class _MemberSettingsScreenState extends State<MemberSettingsScreen> {
   }
 
   Widget _buildPreferencesCard() {
+    final l = context.l10n;
+    final muted = Theme.of(context).colorScheme.onSurfaceVariant;
     return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(
-          color: Colors.grey.shade200,
-          width: 1,
-        ),
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 24,
-          ),
-        ],
-      ),
+      decoration: MemberPageStyles.cardDecoration(context),
       padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Preferences',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: AppColors.navy,
-            ),
-          ),
+          Text(l.preferences, style: MemberPageStyles.sectionTitle(context)),
           const SizedBox(height: 20),
-
-          // Language Selection
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Language',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.navy,
-                ),
-              ),
+              Text(l.language, style: MemberPageStyles.label(context)),
               const SizedBox(height: 8),
-              Container(
-                decoration: BoxDecoration(
-                  border: Border.all(
-                    color: Colors.grey.shade300,
-                    width: 1,
-                  ),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: DropdownButton<String>(
-                  isExpanded: true,
-                  value: _settings!.language,
-                  underline: Container(),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                  items: _languages
-                      .map((lang) => DropdownMenuItem(
-                        value: lang,
-                        child: Text(
-                          _languageNames[lang] ?? lang,
-                        ),
-                      ))
-                      .toList(),
-                  onChanged: (value) {
-                    if (value != null) {
-                      setState(() {
-                        _settings = _settings!.copyWith(
-                          language: value,
-                        );
-                      });
-                    }
-                  },
-                ),
+              SegmentedButton<String>(
+                segments: [
+                  ButtonSegment(value: 'es', label: Text(l.spanish)),
+                  ButtonSegment(value: 'en', label: Text(l.english)),
+                ],
+                selected: {
+                  _normalizedLanguage(_settings!.language),
+                },
+                onSelectionChanged: (selection) {
+                  final lang = selection.first;
+                  setState(() {
+                    _settings = _settings!.copyWith(language: lang);
+                  });
+                  _applyLanguageImmediately(lang);
+                },
               ),
             ],
           ),
@@ -420,21 +393,11 @@ class _MemberSettingsScreenState extends State<MemberSettingsScreen> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Dark Mode',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.navy,
-                    ),
-                  ),
+                  Text(l.darkMode, style: MemberPageStyles.label(context)),
                   const SizedBox(height: 4),
                   Text(
-                    _settings!.darkMode ? 'On' : 'Off',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey[600],
-                    ),
+                    _settings!.darkMode ? l.onLabel : l.offLabel,
+                    style: TextStyle(fontSize: 12, color: muted),
                   ),
                 ],
               ),
@@ -442,10 +405,9 @@ class _MemberSettingsScreenState extends State<MemberSettingsScreen> {
                 value: _settings!.darkMode,
                 onChanged: (value) {
                   setState(() {
-                    _settings = _settings!.copyWith(
-                      darkMode: value,
-                    );
+                    _settings = _settings!.copyWith(darkMode: value);
                   });
+                  _applyThemeImmediately(value);
                 },
                 activeThumbColor: AppColors.teal,
               ),
@@ -460,21 +422,14 @@ class _MemberSettingsScreenState extends State<MemberSettingsScreen> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Email Notifications',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.navy,
-                    ),
+                  Text(
+                    l.emailNotifications,
+                    style: MemberPageStyles.label(context),
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    _settings!.notificationEnabled ? 'Enabled' : 'Disabled',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey[600],
-                    ),
+                    _settings!.notificationEnabled ? l.enabled : l.disabled,
+                    style: TextStyle(fontSize: 12, color: muted),
                   ),
                 ],
               ),
@@ -493,10 +448,7 @@ class _MemberSettingsScreenState extends State<MemberSettingsScreen> {
           ),
 
           const SizedBox(height: 24),
-          Divider(
-            color: Colors.grey.shade300,
-            height: 1,
-          ),
+          Divider(color: Theme.of(context).dividerColor, height: 1),
           const SizedBox(height: 24),
 
           // Timestamps
@@ -515,7 +467,7 @@ class _MemberSettingsScreenState extends State<MemberSettingsScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Created At',
+                          l.createdAt,
                           style: TextStyle(
                             fontSize: 12,
                             color: Colors.grey[600],
@@ -523,10 +475,10 @@ class _MemberSettingsScreenState extends State<MemberSettingsScreen> {
                         ),
                         Text(
                           _formatDate(_settings!.createdAt),
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w500,
-                            color: AppColors.navy,
+                            color: Theme.of(context).colorScheme.onSurface,
                           ),
                         ),
                       ],
@@ -548,7 +500,7 @@ class _MemberSettingsScreenState extends State<MemberSettingsScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Last Updated',
+                          l.lastUpdated,
                           style: TextStyle(
                             fontSize: 12,
                             color: Colors.grey[600],
@@ -556,10 +508,10 @@ class _MemberSettingsScreenState extends State<MemberSettingsScreen> {
                         ),
                         Text(
                           _formatDate(_settings!.updatedAt),
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w500,
-                            color: AppColors.navy,
+                            color: Theme.of(context).colorScheme.onSurface,
                           ),
                         ),
                       ],
@@ -578,7 +530,7 @@ class _MemberSettingsScreenState extends State<MemberSettingsScreen> {
             children: [
               OutlinedButton(
                 onPressed: _isDirty() ? _resetSettings : null,
-                child: const Text('Reset'),
+                child: Text(l.reset),
               ),
               const SizedBox(width: 12),
               ElevatedButton(
@@ -596,7 +548,7 @@ class _MemberSettingsScreenState extends State<MemberSettingsScreen> {
                               AlwaysStoppedAnimation<Color>(Colors.white),
                         ),
                       )
-                    : const Text('Save'),
+                    : Text(l.save),
               ),
             ],
           ),
@@ -677,80 +629,65 @@ class _MemberSettingsScreenState extends State<MemberSettingsScreen> {
   }
 
   Widget _buildSummaryCard() {
+    final l = context.l10n;
+    final muted = Theme.of(context).colorScheme.onSurfaceVariant;
+    final onSurface = Theme.of(context).colorScheme.onSurface;
     return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(
-          color: Colors.grey.shade200,
-          width: 1,
-        ),
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 24,
-          ),
-        ],
-      ),
+      decoration: MemberPageStyles.cardDecoration(context),
       padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Summary',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: AppColors.navy,
-            ),
-          ),
+          Text(l.summary, style: MemberPageStyles.sectionTitle(context)),
           const SizedBox(height: 16),
           _buildSummaryItem(
-            'Language',
-            _languageNames[_settings!.language] ?? _settings!.language,
+            l.language,
+            _languageLabel(l, _normalizedLanguage(_settings!.language)),
+            muted: muted,
+            valueColor: onSurface,
           ),
           const SizedBox(height: 12),
           _buildSummaryItem(
-            'Dark Mode',
-            _settings!.darkMode ? 'On' : 'Off',
+            l.darkMode,
+            _settings!.darkMode ? l.onLabel : l.offLabel,
+            muted: muted,
+            valueColor: onSurface,
           ),
           const SizedBox(height: 12),
           _buildSummaryItem(
-            'Notifications',
-            _settings!.notificationEnabled ? 'Enabled' : 'Disabled',
+            l.emailNotifications,
+            _settings!.notificationEnabled ? l.enabled : l.disabled,
+            muted: muted,
+            valueColor: onSurface,
           ),
         ],
       ),
     );
   }
 
-  Widget _buildSummaryItem(String label, String value) {
+  Widget _buildSummaryItem(
+    String label,
+    String value, {
+    required Color muted,
+    required Color valueColor,
+  }) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 12),
       decoration: BoxDecoration(
         border: Border(
-          bottom: BorderSide(
-            color: Colors.grey.shade200,
-            width: 1,
-          ),
+          bottom: BorderSide(color: Theme.of(context).dividerColor),
         ),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 13,
-              color: Colors.grey[700],
-            ),
-          ),
+          Text(label, style: TextStyle(fontSize: 13, color: muted)),
           Text(
             value,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.bold,
-              color: AppColors.navy,
+              color: valueColor,
             ),
           ),
         ],

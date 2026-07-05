@@ -1,11 +1,11 @@
 {
-    "name": "budgetly_app",
-    "short_name": "budgetly_app",
+    "name": "Budgetly",
+    "short_name": "Budgetly",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#275954",
+    "theme_color": "#275954",
+    "description": "Gestión de presupuesto y gastos del hogar.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

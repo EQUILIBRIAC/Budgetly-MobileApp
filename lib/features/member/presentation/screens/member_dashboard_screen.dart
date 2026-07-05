@@ -6,8 +6,11 @@ import 'package:budgetly_app/domain/entities/contribution_entities.dart';
 import 'package:budgetly_app/domain/entities/household_entities.dart';
 import 'package:budgetly_app/core/network/http_service.dart';
 import 'package:budgetly_app/core/storage/storage_service.dart';
+import 'package:budgetly_app/features/member/domain/member_contribution_utils.dart';
 import 'package:budgetly_app/features/member/presentation/widgets/member_dashboard_layout.dart';
-import 'package:budgetly_app/app/theme/app_colors.dart';
+import 'package:budgetly_app/features/member/presentation/widgets/member_no_household_view.dart';
+import 'package:budgetly_app/app/l10n/app_localizations.dart';
+import 'package:budgetly_app/features/member/presentation/widgets/member_page_styles.dart';
 
 class MemberDashboardScreen extends StatefulWidget {
   const MemberDashboardScreen({super.key});
@@ -18,18 +21,58 @@ class MemberDashboardScreen extends StatefulWidget {
 
 class _MemberDashboardScreenState extends State<MemberDashboardScreen> {
   bool _isLoading = true;
+  bool _needsHousehold = false;
   String _error = '';
 
   List<MemberContribution> _memberContributions = [];
+  List<Contribution> _contributions = [];
+  List<Bill> _bills = [];
   List<String> _categories = [];
   String _currency = 'PEN';
 
-  // Filters
-  String _dateRangeType = 'current'; // current, last3, custom
+  // Filters — "Todos" por defecto: el API suele tener vencimientos en meses distintos al actual.
+  String _dateRangeType = 'all'; // all, current, last3, custom
   DateTimeRange? _customRange;
   String _categoryFilter = 'all';
   bool _onlyOverdue = false;
   bool _onlyPending = false;
+
+  Map<String, Contribution> get _contributionsById => {
+        for (final c in _contributions) c.id: c,
+      };
+
+  Map<String, Bill> get _billsById => {
+        for (final b in _bills) b.id: b,
+      };
+
+  List<MemberContribution> get _activeContributions {
+    final validIds = _contributions.map((c) => c.id).toSet();
+    return MemberContributionUtils.dedupeByContribution(
+      _memberContributions,
+      validContributionIds: validIds,
+      contributionsById: _contributionsById,
+    );
+  }
+
+  DateTime _dueDate(MemberContribution item) =>
+      MemberContributionUtils.dueDate(
+        item,
+        contributionsById: _contributionsById,
+        billsById: _billsById,
+      );
+
+  DateTime _periodDate(MemberContribution item) =>
+      MemberContributionUtils.periodDate(
+        item,
+        contributionsById: _contributionsById,
+        billsById: _billsById,
+      );
+
+  String? _categoryFor(MemberContribution item) {
+    final billId = _contributionsById[item.contributionId]?.billId;
+    if (billId == null || billId.isEmpty) return null;
+    return _billsById[billId]?.category;
+  }
 
   @override
   void initState() {
@@ -38,34 +81,52 @@ class _MemberDashboardScreenState extends State<MemberDashboardScreen> {
   }
 
   Future<void> _loadData() async {
+    if (!mounted) return;
+    setState(() {
+      _isLoading = true;
+      _error = '';
+      _needsHousehold = false;
+    });
+
     try {
       final user = await StorageService.getUser();
       if (user == null) throw Exception('Usuario no encontrado');
 
       final householdId = _toString(user['householdId']);
       if (householdId == null || householdId.isEmpty) {
-        throw Exception('Hogar no encontrado');
+        if (!mounted) return;
+        setState(() {
+          _needsHousehold = true;
+          _isLoading = false;
+        });
+        return;
       }
 
       final httpService = HttpService(baseUrl: EnvConfig.apiBaseUrl);
-      
-      // Set token on the service
       final token = await StorageService.getToken();
       if (token != null) {
         httpService.setToken(token);
       }
 
-      final [memberList, memberContribs, household] = await Future.wait([
-        _fetchMembers(httpService, householdId),
-        _fetchMemberContributions(httpService),
-        _fetchHousehold(httpService, householdId),
-      ]);
+      final members = await _fetchMembers(httpService, householdId);
+      final userId = _toString(user['id']);
+      final member = members.cast<HouseholdMember?>().firstWhere(
+            (m) => m!.userId == userId,
+            orElse: () => null,
+          );
+      final memberId = member?.id ?? '';
 
+      final memberContribs = memberId.isNotEmpty
+          ? await _fetchMemberContributions(httpService, memberId)
+          : <MemberContribution>[];
+
+      final contributions =
+          await _fetchContributions(httpService, householdId);
       final bills = await _fetchBills(httpService, householdId);
+      final household = await _fetchHousehold(httpService, householdId);
 
-      // Extract categories from bills
       final categories = <String>{};
-      for (var bill in bills) {
+      for (final bill in bills) {
         if (bill.category != null && bill.category!.isNotEmpty) {
           categories.add(bill.category!);
         }
@@ -75,13 +136,17 @@ class _MemberDashboardScreenState extends State<MemberDashboardScreen> {
           ? Household.fromJson(household[0] as Map<String, dynamic>)
           : null;
 
+      if (!mounted) return;
       setState(() {
-        _memberContributions = memberContribs as List<MemberContribution>;
+        _memberContributions = memberContribs;
+        _contributions = contributions;
+        _bills = bills;
         _categories = categories.toList()..sort();
         _currency = householdData?.currency ?? 'PEN';
         _isLoading = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = e.toString().replaceAll('Exception: ', '');
         _isLoading = false;
@@ -93,53 +158,53 @@ class _MemberDashboardScreenState extends State<MemberDashboardScreen> {
     HttpService httpService,
     String householdId,
   ) async {
-    try {
-      final response =
-          await httpService.get(ApiPaths.householdMembersByHousehold(householdId));
-      final list = ApiJson.listData(response);
-      return list.map((json) => HouseholdMember.fromJson(json)).toList();
-    } catch (e) {
-      return [];
-    }
+    final response =
+        await httpService.get(ApiPaths.householdMembersByHousehold(householdId));
+    return ApiJson.listDataFlexible(response)
+        .map((json) => HouseholdMember.fromJson(json))
+        .toList();
   }
 
   Future<List<MemberContribution>> _fetchMemberContributions(
     HttpService httpService,
+    String memberId,
   ) async {
-    try {
-      final response = await httpService.get(ApiPaths.memberContributionRoot);
-      final list = ApiJson.listData(response);
-      return list.map((json) => MemberContribution.fromJson(json)).toList();
-    } catch (e) {
-      return [];
-    }
+    final response =
+        await httpService.get(ApiPaths.memberContributionsByMember(memberId));
+    return ApiJson.listDataFlexible(response)
+        .map((json) => MemberContribution.fromJson(json))
+        .toList();
+  }
+
+  Future<List<Contribution>> _fetchContributions(
+    HttpService httpService,
+    String householdId,
+  ) async {
+    final response =
+        await httpService.get(ApiPaths.contributionsByHousehold(householdId));
+    return ApiJson.listDataFlexible(response)
+        .map((json) => Contribution.fromJson(json))
+        .toList();
   }
 
   Future<List<Bill>> _fetchBills(
     HttpService httpService,
     String householdId,
   ) async {
-    try {
-      final response = await httpService.get(ApiPaths.billsByHousehold(householdId));
-      final list = ApiJson.listData(response);
-      return list.map((json) => Bill.fromJson(json)).toList();
-    } catch (e) {
-      return [];
-    }
+    final response = await httpService.get(ApiPaths.billsByHousehold(householdId));
+    return ApiJson.listDataFlexible(response)
+        .map((json) => Bill.fromJson(json))
+        .toList();
   }
 
   Future<List<dynamic>> _fetchHousehold(
     HttpService httpService,
     String householdId,
   ) async {
-    try {
-      final response = await httpService.get(ApiPaths.houseHold(householdId));
-      final map = ApiJson.objectData(response);
-      if (map == null) return [];
-      return [map];
-    } catch (e) {
-      return [];
-    }
+    final response = await httpService.get(ApiPaths.houseHold(householdId));
+    final map = ApiJson.objectData(response);
+    if (map == null) return [];
+    return [map];
   }
 
   String? _toString(dynamic value) {
@@ -154,13 +219,19 @@ class _MemberDashboardScreenState extends State<MemberDashboardScreen> {
     final now = DateTime.now();
     final (startDate, endDate) = _resolveDateRange();
 
-    return _memberContributions.where((item) {
-      final due = item.updatedAt;
+    return _activeContributions.where((item) {
+      final period = _periodDate(item);
 
-      if (startDate != null && due.isBefore(startDate)) return false;
-      if (endDate != null && due.isAfter(endDate)) return false;
+      if (startDate != null && period.isBefore(startDate)) return false;
+      if (endDate != null && period.isAfter(endDate)) return false;
+
+      if (_categoryFilter != 'all') {
+        final cat = _categoryFor(item);
+        if (cat != _categoryFilter) return false;
+      }
 
       if (_onlyOverdue) {
+        final due = _dueDate(item);
         final isOverdue = !item.isPaid && due.isBefore(now);
         if (!isOverdue) return false;
       }
@@ -173,6 +244,10 @@ class _MemberDashboardScreenState extends State<MemberDashboardScreen> {
 
   (DateTime?, DateTime?) _resolveDateRange() {
     final now = DateTime.now();
+
+    if (_dateRangeType == 'all') {
+      return (null, null);
+    }
 
     if (_dateRangeType == 'current') {
       final start = DateTime(now.year, now.month, 1);
@@ -188,7 +263,8 @@ class _MemberDashboardScreenState extends State<MemberDashboardScreen> {
 
     if (_dateRangeType == 'custom' && _customRange != null) {
       final start = _customRange!.start;
-      final end = _customRange!.end.add(const Duration(hours: 23, minutes: 59, seconds: 59));
+      final end = _customRange!.end
+          .add(const Duration(hours: 23, minutes: 59, seconds: 59));
       return (start, end);
     }
 
@@ -198,10 +274,10 @@ class _MemberDashboardScreenState extends State<MemberDashboardScreen> {
   Map<String, double> get _totals {
     final (startDate, endDate) = _resolveDateRange();
 
-    final filtered = _memberContributions.where((item) {
-      final due = item.updatedAt;
-      if (startDate != null && due.isBefore(startDate)) return false;
-      if (endDate != null && due.isAfter(endDate)) return false;
+    final filtered = _activeContributions.where((item) {
+      final period = _periodDate(item);
+      if (startDate != null && period.isBefore(startDate)) return false;
+      if (endDate != null && period.isAfter(endDate)) return false;
       return true;
     }).toList();
 
@@ -216,29 +292,21 @@ class _MemberDashboardScreenState extends State<MemberDashboardScreen> {
     };
   }
 
-  double get _totalCurrentMonth {
-    final now = DateTime.now();
-    return _memberContributions
-        .where((item) {
-          final date = item.updatedAt;
-          return date.year == now.year && date.month == now.month;
-        })
-        .fold<double>(0, (sum, c) => sum + c.amount);
-  }
-
   int get _overdueCount {
     final now = DateTime.now();
-    return _filteredItems.where((item) => !item.isPaid && item.updatedAt.isBefore(now)).length;
+    return _filteredItems
+        .where((item) => !item.isPaid && _dueDate(item).isBefore(now))
+        .length;
   }
 
   double get _upcomingAmount {
     final now = DateTime.now();
     final limit = now.add(const Duration(days: 7));
-    return _memberContributions
-        .where((item) =>
-            !item.isPaid &&
-            item.updatedAt.isAfter(now) &&
-            item.updatedAt.isBefore(limit))
+    return _activeContributions
+        .where((item) {
+          final due = _dueDate(item);
+          return !item.isPaid && due.isAfter(now) && due.isBefore(limit);
+        })
         .fold<double>(0, (sum, c) => sum + c.amount);
   }
 
@@ -252,6 +320,7 @@ class _MemberDashboardScreenState extends State<MemberDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l = context.l10n;
     return MemberDashboardLayout(
       currentRoute: 'member-dashboard',
       child: RefreshIndicator(
@@ -264,233 +333,267 @@ class _MemberDashboardScreenState extends State<MemberDashboardScreen> {
                   height: 500,
                   child: Center(child: CircularProgressIndicator()),
                 )
-              : _error.isNotEmpty
-                  ? SizedBox(
-                      height: 500,
-                      child: Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
+              : _needsHousehold
+                  ? MemberNoHouseholdView(onRetry: _loadData)
+                  : _error.isNotEmpty
+                      ? SizedBox(
+                          height: 500,
+                          child: Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  _error,
+                                  style: const TextStyle(color: Colors.red),
+                                  textAlign: TextAlign.center,
+                                ),
+                                const SizedBox(height: 12),
+                                ElevatedButton(
+                                  onPressed: _loadData,
+                                  child: Text(l.retry),
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                      : Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              _error,
-                              style: const TextStyle(color: Colors.red),
-                              textAlign: TextAlign.center,
+                              l.home,
+                              style: MemberPageStyles.pageTitle(context),
                             ),
-                            const SizedBox(height: 12),
-                            ElevatedButton(
-                              onPressed: _loadData,
-                              child: const Text('Reintentar'),
+                            const SizedBox(height: 20),
+                            Card(
+                              elevation: 2,
+                              child: Padding(
+                                padding: const EdgeInsets.all(16),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      l.filters,
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    Wrap(
+                                      spacing: 12,
+                                      runSpacing: 12,
+                                      children: [
+                                        _buildDateRangeDropdown(),
+                                        _buildCategoryDropdown(),
+                                        _buildCheckbox(
+                                          l.onlyOverdue,
+                                          _onlyOverdue,
+                                          (v) => setState(
+                                            () => _onlyOverdue = v ?? false,
+                                          ),
+                                        ),
+                                        _buildCheckbox(
+                                          l.onlyPending,
+                                          _onlyPending,
+                                          (v) => setState(
+                                            () => _onlyPending = v ?? false,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            GridView.count(
+                              crossAxisCount:
+                                  MediaQuery.of(context).size.width > 1200
+                                      ? 4
+                                      : 2,
+                              mainAxisSpacing: 16,
+                              crossAxisSpacing: 16,
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              children: [
+                                _buildKpiCard(
+                                  l.totalAssigned,
+                                  _formatCurrency(_totals['assigned'] ?? 0),
+                                  Colors.blue,
+                                ),
+                                _buildKpiCard(
+                                  l.paid,
+                                  _formatCurrency(_totals['paid'] ?? 0),
+                                  Colors.green,
+                                ),
+                                _buildKpiCard(
+                                  l.pending,
+                                  _formatCurrency(_totals['pending'] ?? 0),
+                                  Colors.orange,
+                                ),
+                                _buildKpiCard(
+                                  l.next7Days,
+                                  _formatCurrency(_upcomingAmount),
+                                  Colors.purple,
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 20),
+                            Card(
+                              elevation: 2,
+                              child: Padding(
+                                padding: const EdgeInsets.all(16),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(l.overdueContributions),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      '$_overdueCount',
+                                      style: const TextStyle(
+                                        fontSize: 24,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      l.overdueContributionsHint,
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            Card(
+                              elevation: 2,
+                              child: Padding(
+                                padding: const EdgeInsets.all(16),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      l.contributionsSummary,
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 16),
+                                    _filteredItems.isEmpty
+                                        ? Padding(
+                                            padding: const EdgeInsets.all(16),
+                                            child: Text(
+                                              l.noDataForFilters,
+                                              style: const TextStyle(
+                                                  color: Colors.grey),
+                                            ),
+                                          )
+                                        : SingleChildScrollView(
+                                            scrollDirection: Axis.horizontal,
+                                            child: DataTable(
+                                              columns: [
+                                                DataColumn(label: Text(l.expense)),
+                                                DataColumn(label: Text(l.amount)),
+                                                DataColumn(label: Text(l.status)),
+                                                DataColumn(label: Text(l.dueDate)),
+                                              ],
+                                              rows: _filteredItems
+                                                  .map(
+                                                    (item) => DataRow(
+                                                      cells: [
+                                                        DataCell(
+                                                          Text(
+                                                            MemberContributionUtils.labelFor(
+                                                              item,
+                                                              contributionsById:
+                                                                  _contributionsById,
+                                                              billsById: _billsById,
+                                                            ),
+                                                            overflow: TextOverflow.ellipsis,
+                                                          ),
+                                                        ),
+                                                        DataCell(
+                                                          Text(_formatCurrency(
+                                                              item.amount)),
+                                                        ),
+                                                        DataCell(
+                                                          Container(
+                                                            padding:
+                                                                const EdgeInsets
+                                                                    .symmetric(
+                                                              horizontal: 8,
+                                                              vertical: 4,
+                                                            ),
+                                                            decoration:
+                                                                BoxDecoration(
+                                                              color: item.isPaid
+                                                                  ? Colors.green
+                                                                      .shade100
+                                                                  : Colors.orange
+                                                                      .shade100,
+                                                              borderRadius:
+                                                                  BorderRadius
+                                                                      .circular(
+                                                                          4),
+                                                            ),
+                                                            child: Text(
+                                                              item.isPaid
+                                                                  ? l.paid
+                                                                  : l.pending,
+                                                              style: TextStyle(
+                                                                color: item
+                                                                        .isPaid
+                                                                    ? Colors
+                                                                        .green
+                                                                        .shade700
+                                                                    : Colors
+                                                                        .orange
+                                                                        .shade700,
+                                                                fontSize: 12,
+                                                              ),
+                                                            ),
+                                                          ),
+                                                        ),
+                                                        DataCell(
+                                                          Text(
+                                                            _formatDate(
+                                                              _dueDate(item),
+                                                            ),
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  )
+                                                  .toList(),
+                                            ),
+                                          ),
+                                  ],
+                                ),
+                              ),
                             ),
                           ],
                         ),
-                      ),
-                    )
-                  : Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Title
-                      const Text(
-                        'Inicio',
-                        style: TextStyle(
-                          fontSize: 28,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.navy,
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-
-                      // Filters Card
-                      Card(
-                        elevation: 2,
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'Filtros',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                              Wrap(
-                                spacing: 12,
-                                runSpacing: 12,
-                                children: [
-                                  _buildDateRangeDropdown(),
-                                  _buildCategoryDropdown(),
-                                  _buildCheckbox('Solo vencidos', _onlyOverdue,
-                                      (v) => setState(() => _onlyOverdue = v ?? false)),
-                                  _buildCheckbox('Solo pendientes', _onlyPending,
-                                      (v) => setState(() => _onlyPending = v ?? false)),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-
-                      // KPI Cards
-                      GridView.count(
-                        crossAxisCount:
-                            MediaQuery.of(context).size.width > 1200 ? 4 : 2,
-                        mainAxisSpacing: 16,
-                        crossAxisSpacing: 16,
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        children: [
-                          _buildKpiCard(
-                            'Total mes actual',
-                            _formatCurrency(_totalCurrentMonth),
-                            Colors.blue,
-                          ),
-                          _buildKpiCard(
-                            'Pagado',
-                            _formatCurrency(_totals['paid'] ?? 0),
-                            Colors.green,
-                          ),
-                          _buildKpiCard(
-                            'Pendiente',
-                            _formatCurrency(_totals['pending'] ?? 0),
-                            Colors.orange,
-                          ),
-                          _buildKpiCard(
-                            'Próximos 7 días',
-                            _formatCurrency(_upcomingAmount),
-                            Colors.purple,
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 20),
-
-                      // Overdue Count Card
-                      Card(
-                        elevation: 2,
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text('Bills vencidos'),
-                              const SizedBox(height: 8),
-                              Text(
-                                '$_overdueCount',
-                                style: const TextStyle(
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              const Text(
-                                'Contribuciones con fecha vencida',
-                                style: TextStyle(fontSize: 12, color: Colors.grey),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-
-                      // Contributions Table
-                      Card(
-                        elevation: 2,
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'Resumen de tus contribuciones',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              _filteredItems.isEmpty
-                                  ? const Padding(
-                                      padding: EdgeInsets.all(16),
-                                      child: Text(
-                                        'No hay datos para los filtros seleccionados.',
-                                        style: TextStyle(color: Colors.grey),
-                                      ),
-                                    )
-                                  : SingleChildScrollView(
-                                      scrollDirection: Axis.horizontal,
-                                      child: DataTable(
-                                        columns: const [
-                                          DataColumn(label: Text('Monto')),
-                                          DataColumn(label: Text('Estado')),
-                                          DataColumn(label: Text('Fecha')),
-                                        ],
-                                        rows: _filteredItems
-                                            .map(
-                                              (item) => DataRow(
-                                                cells: [
-                                                  DataCell(
-                                                    Text(_formatCurrency(item.amount)),
-                                                  ),
-                                                  DataCell(
-                                                    Container(
-                                                      padding: const EdgeInsets.symmetric(
-                                                        horizontal: 8,
-                                                        vertical: 4,
-                                                      ),
-                                                      decoration: BoxDecoration(
-                                                        color: item.isPaid
-                                                            ? Colors.green.shade100
-                                                            : Colors.orange.shade100,
-                                                        borderRadius:
-                                                            BorderRadius.circular(4),
-                                                      ),
-                                                      child: Text(
-                                                        item.isPaid
-                                                            ? 'Pagado'
-                                                            : 'Pendiente',
-                                                        style: TextStyle(
-                                                          color: item.isPaid
-                                                              ? Colors.green.shade700
-                                                              : Colors.orange.shade700,
-                                                          fontSize: 12,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  ),
-                                                  DataCell(
-                                                    Text(
-                                                      _formatDate(item.updatedAt),
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            )
-                                            .toList(),
-                                      ),
-                                    ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
         ),
       ),
     );
   }
 
   Widget _buildDateRangeDropdown() {
+    final l = context.l10n;
     return Container(
       constraints: const BoxConstraints(minWidth: 150),
       child: DropdownButton<String>(
         value: _dateRangeType,
         isExpanded: true,
         items: [
-          const DropdownMenuItem(value: 'current', child: Text('Mes actual')),
-          const DropdownMenuItem(value: 'last3', child: Text('Últimos 3 meses')),
-          const DropdownMenuItem(value: 'custom', child: Text('Personalizado')),
+          DropdownMenuItem(value: 'all', child: Text(l.all)),
+          DropdownMenuItem(value: 'current', child: Text(l.currentMonth)),
+          DropdownMenuItem(value: 'last3', child: Text(l.last3Months)),
+          DropdownMenuItem(value: 'custom', child: Text(l.customRange)),
         ],
         onChanged: (value) {
           if (value != null) {
@@ -507,6 +610,7 @@ class _MemberDashboardScreenState extends State<MemberDashboardScreen> {
   }
 
   Widget _buildCategoryDropdown() {
+    final l = context.l10n;
     final options = ['all', ..._categories];
     return Container(
       constraints: const BoxConstraints(minWidth: 150),
@@ -514,10 +618,12 @@ class _MemberDashboardScreenState extends State<MemberDashboardScreen> {
         value: _categoryFilter,
         isExpanded: true,
         items: options
-            .map((cat) => DropdownMenuItem(
-              value: cat,
-              child: Text(cat == 'all' ? 'Todas' : cat),
-            ))
+            .map(
+              (cat) => DropdownMenuItem(
+                value: cat,
+                child: Text(cat == 'all' ? l.allFeminine : cat),
+              ),
+            )
             .toList(),
         onChanged: (value) {
           if (value != null) {
@@ -528,14 +634,15 @@ class _MemberDashboardScreenState extends State<MemberDashboardScreen> {
     );
   }
 
-  Widget _buildCheckbox(String label, bool value, Function(bool?) onChanged) {
+  Widget _buildCheckbox(
+    String label,
+    bool value,
+    Function(bool?) onChanged,
+  ) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Checkbox(
-          value: value,
-          onChanged: onChanged,
-        ),
+        Checkbox(value: value, onChanged: onChanged),
         Text(label),
       ],
     );
@@ -552,10 +659,7 @@ class _MemberDashboardScreenState extends State<MemberDashboardScreen> {
           children: [
             Text(
               title,
-              style: const TextStyle(
-                fontSize: 12,
-                color: Colors.grey,
-              ),
+              style: const TextStyle(fontSize: 12, color: Colors.grey),
             ),
             const SizedBox(height: 8),
             Text(
@@ -576,4 +680,3 @@ class _MemberDashboardScreenState extends State<MemberDashboardScreen> {
     return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
   }
 }
-
